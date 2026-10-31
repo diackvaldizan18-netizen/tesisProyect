@@ -1,8 +1,9 @@
-<fieldset><legend>Abono y custodia de llaves</legend>
-<div class="form-group"><label for="abono_id">Abono vigente (solo para el vehículo del abonado)</label><select id="abono_id" name="abono_id"><option value="">Ingreso por hora / reserva</option>@foreach($abonos as $a)<option value="{{ $a->id }}" @selected(old('abono_id',request('abono_id'))==$a->id)>{{ $a->espacio->codigo }} · {{ $a->abonado->nombre }} · {{ implode(', ',$a->abonado->placas) }}</option>@endforeach</select><small>Selecciona también su espacio y tipo de vehículo. El servidor verifica vigencia, placa y pago.</small></div>
-<p>Para ocupar temporalmente el espacio de un abonado ausente, registra la autorización y la llave. No podrás reubicar el vehículo sin ambos datos.</p>
-<label><input type="checkbox" name="autoriza_movimiento" value="1" @checked(old('autoriza_movimiento'))> El cliente autoriza mover su vehículo.</label>
-<label><input type="checkbox" name="llave_recibida" value="1" @checked(old('llave_recibida'))> Recibí la llave.</label>
-<div class="form-group"><label for="ubicacion_llave">Ubicación de la llave</label><input id="ubicacion_llave" name="ubicacion_llave" maxlength="100" placeholder="Casillero 12" value="{{ old('ubicacion_llave') }}"></div>
-<div class="form-group"><label for="salida_prevista">Salida aproximada (opcional)</label><input type="datetime-local" name="salida_prevista" id="salida_prevista" value="{{ old('salida_prevista') }}"></div>
+@if($modalidad === 'abonado')
+<div class="form-group"><label for="abono_id">Abonado vigente · placa y espacio asignado</label><select id="abono_id" name="abono_id" required><option value="">Selecciona el abonado</option>@foreach($abonos as $a)<option value="{{ $a->id }}" data-space="{{ $a->espacio_id }}" data-plates="{{ implode(',', $a->abonado->placas) }}" @selected(old('abono_id',request('abono_id'))==$a->id)>{{ $a->abonado->nombre }} · {{ implode(', ', $a->abonado->placas) }} · {{ $a->espacio->codigo }}</option>@endforeach</select><p id="abono-help" role="status">Verifica la placa autorizada. Si el espacio está ocupado, reubica primero el vehículo temporal desde su ticket.</p></div>
+@endif
+<fieldset><legend>Autorización y llaves</legend>
+<label class="checkbox-row"><input type="checkbox" name="autoriza_movimiento" value="1" @checked(old('autoriza_movimiento'))> El cliente autoriza al personal a reubicar su vehículo.</label>
+<p>El casillero se asigna con el mismo número del espacio (T04 → casillero T04). Después de estacionar, confirma la recepción física de las llaves desde el ticket.</p>
+<p id="casillero-sugerido" role="status"></p>
+<details @if($errors->has('casillero') || old('casillero')) open @endif><summary>Elegir otro casillero si el correspondiente está ocupado</summary><div class="form-group"><label for="casillero-alternativo">Casillero alternativo</label><select id="casillero-alternativo" name="casillero"><option value="">Usar el número del espacio</option>@for($i=1;$i<=41;$i++)<option value="{{ $i }}" @selected(old('casillero')==$i)>T{{ str_pad($i,2,'0',STR_PAD_LEFT) }}</option>@endfor</select><small>El servidor comprobará que esté libre. La asignación no confirma que recibiste las llaves.</small></div></details>
 </fieldset>

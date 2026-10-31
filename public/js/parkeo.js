@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let running=false;
   const render=(state,title,detail)=>{
    notice.dataset.state=state;
+   if(notice.dataset.hideEmpty==='1') notice.hidden=state==='clear'||state==='loading';
    notice.querySelector('[data-notice-title]').textContent=title;
    notice.querySelector('[data-notice-detail]').textContent=detail;
   };

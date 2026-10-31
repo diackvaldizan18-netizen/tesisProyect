@@ -3,6 +3,9 @@
 svg.icon { width: 20px; height: 20px; vertical-align: middle; flex-shrink: 0; }
 .entry-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 .entry-grid > * { min-width: 0; }
+.entry-grid.entry-single { grid-template-columns: minmax(0, 820px); }
+.ticket-scanner{width:min(580px,calc(100% - 24px));max-height:90dvh;overflow:auto;box-sizing:border-box;border:1px solid #486079;border-radius:18px;background:#101e2c;color:#f4f7fb;padding:22px}
+.ticket-scanner::backdrop{background:#000b}.ticket-scanner video{display:block;width:100%;max-height:52dvh;object-fit:contain;background:#03090e;border-radius:12px}.ticket-scanner .operation-links{display:flex;gap:10px;flex-wrap:wrap}
 .entry-grid .card { margin-bottom: 24px; }
 .panel-heading, .filters, .search-form, .table-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .panel-heading { justify-content: space-between; margin-bottom: 20px; }

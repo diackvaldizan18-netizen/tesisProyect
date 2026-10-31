@@ -1,7 +1,8 @@
-<section class="card"><h2>Ubicación y reubicaciones</h2>
+<section class="card" id="reubicacion"><h2>Ubicación y reubicaciones</h2>
 @if($estadia->abono)<p><strong>Ingreso de abonado:</strong> <a href="{{ route('admin.abonados.show',$estadia->abono->abonado_id) }}">{{ $estadia->abono->abonado->nombre }}</a>. Periodo de ingreso: {{ $estadia->abono->inicio->format('d/m/Y') }} → {{ $estadia->abono->fin->format('d/m/Y H:i') }}. El cálculo de salida considera las renovaciones pagadas y cobra por hora los intervalos vencidos.</p>@endif
 <p>Ubicación actual: <strong>{{ $estadia->espacio->codigo }}</strong>. Llave: {{ $estadia->llave_recibida ? $estadia->ubicacion_llave : 'No recibida' }}.</p>
-@if(!$estadia->hora_salida && !$estadia->abono_id)
+@if(!$estadia->hora_salida && !$estadia->abono_id && $estadia->espacio->abonoVigente()->exists())
+<p><a class="btn btn-secondary" href="{{ route('admin.dashboard',['reubicar'=>$estadia->id]) }}#map-relocation">Elegir destino en el plano</a></p>
 @if(!$estadia->autoriza_movimiento || !$estadia->llave_recibida)<p>Este ingreso no tiene autorización y llave registradas. No se permite reubicar desde aquí.</p>
 @elseif($destinos->isEmpty())<p role="status">No hay un espacio disponible para reubicar. La ubicación actual se mantiene.</p>
 @else<form method="post" action="{{ route('admin.estadias.reubicar',$estadia) }}">@csrf<input type="hidden" name="origen_id" value="{{ $estadia->espacio_id }}">

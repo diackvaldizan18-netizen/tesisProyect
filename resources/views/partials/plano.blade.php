@@ -1,5 +1,6 @@
 @php
     $administrativo = $administrativo ?? false;
+    $recepcion = $recepcion ?? false;
 @endphp
 <section class="parking-widget {{ $administrativo ? '' : 'parking-public-layout' }}" data-parking @if(!$administrativo) data-refresh="{{ route('public.disponibilidad.estado', [], false) }}" @endif>
     @if(!$administrativo)<script type="application/json" data-initial-quotes>@json($tarifasIniciales ?? [])</script>@endif
@@ -20,8 +21,10 @@
         <template data-space-detail="{{ $espacio->id }}">
             <h2>Espacio {{ $espacio->codigo }}</h2><p><strong data-detail-state>{{ $estado['estado_texto'] }}</strong></p>
             <p>{{ $espacio->vehiculoTipos->pluck('nombre')->implode(' · ') ?: 'Consultar vehículos permitidos al personal' }}</p>
-            @if($administrativo)<p>{{ $espacio->modo_monitoreo === 'sensor' ? 'Control por sensor' : 'Control manual por el personal' }}</p>@endif
-            @if($administrativo)
+            @if($administrativo && !$recepcion)<p>{{ $espacio->modo_monitoreo === 'sensor' ? 'Control por sensor' : 'Control manual por el personal' }}</p>@endif
+            @if($recepcion)
+                @include('admin.space-detail')
+            @elseif($administrativo)
                 @php
                     $ticket = $espacio->estadias->first();
                 @endphp
@@ -53,7 +56,7 @@
     <p class="text-muted" data-map-status>{{ $administrativo ? 'Estado al abrir la página. Actualiza para consultar cambios recientes.' : 'La disponibilidad se actualiza automáticamente.' }}</p>
     <p class="text-muted"><small>T = techo · 6 al fondo, 10 a la derecha, 7 a la izquierda y 15 centrales. El morado identifica la zona central; el texto indica su disponibilidad.</small></p>
     </div>
-    <dialog class="space-dialog" aria-label="Detalle y precio del espacio"><form method="dialog"><button class="btn btn-secondary" aria-label="Cerrar detalle">Cerrar ×</button></form>
+    <dialog class="space-dialog {{ $recepcion ? 'reception-drawer' : '' }}" aria-label="Detalle y precio del espacio"><form method="dialog"><button class="btn btn-secondary" aria-label="Cerrar detalle">Cerrar ×</button></form>
     @if(!$administrativo)
     <div class="booking-preferences">
         <div><label for="quote-vehicle">Tu vehículo</label><select id="quote-vehicle">@foreach($vehiculoTipos as $tipo)<option value="{{ $tipo->id }}">{{ $tipo->nombre }}</option>@endforeach</select></div>

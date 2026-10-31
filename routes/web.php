@@ -228,9 +228,19 @@ Route::get('/dashboard', function (Request $request) {
 
 Route::middleware(['auth', 'role:admin,super_admin,operador'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/abonados', [\App\Http\Controllers\Admin\AbonadoController::class, 'index'])->name('abonados.index');
+    Route::get('/caja', [\App\Http\Controllers\Admin\CajaController::class, 'index'])->name('caja.index');
+    Route::get('/incidencias', [\App\Http\Controllers\Admin\IncidenciaController::class, 'index'])->name('incidencias.index');
+    Route::post('/incidencias', [\App\Http\Controllers\Admin\IncidenciaController::class, 'store'])->name('incidencias.store');
+    Route::get('/incidencias/{incidencia}', [\App\Http\Controllers\Admin\IncidenciaController::class, 'show'])->name('incidencias.show');
+    Route::post('/incidencias/{incidencia}', [\App\Http\Controllers\Admin\IncidenciaController::class, 'update'])->name('incidencias.update');
+    Route::get('/incidencias/{incidencia}/evidencias/{evidencia}', [\App\Http\Controllers\Admin\IncidenciaController::class, 'evidencia'])->whereNumber('evidencia')->name('incidencias.evidencia');
+    Route::post('/caja/abrir', [\App\Http\Controllers\Admin\CajaController::class, 'abrir'])->name('caja.abrir');
+    Route::post('/caja/{turno}/cerrar', [\App\Http\Controllers\Admin\CajaController::class, 'cerrar'])->name('caja.cerrar');
+    Route::post('/caja/{turno}/movimiento', [\App\Http\Controllers\Admin\CajaController::class, 'movimiento'])->middleware('role:super_admin')->name('caja.movimiento');
     Route::post('/abonados', [\App\Http\Controllers\Admin\AbonadoController::class, 'store'])->name('abonados.store');
     Route::get('/abonados/{abonado}', [\App\Http\Controllers\Admin\AbonadoController::class, 'show'])->name('abonados.show');
     Route::get('/abonados/{abonado}/qr', [\App\Http\Controllers\Admin\AbonadoController::class, 'qr'])->middleware('signed')->name('abonados.qr');
+    Route::post('/estadias/{estadia}/custodia', [\App\Http\Controllers\Admin\CustodiaController::class, 'store'])->name('estadias.custodia');
     Route::post('/estadias/{estadia}/reubicar', [\App\Http\Controllers\Admin\AbonadoController::class, 'mover'])->name('estadias.reubicar');
     Route::get('/estadias', [\App\Http\Controllers\Admin\EstadiaController::class, 'index'])->name('estadias.index');
     Route::get('/reservas/{reserva}/escanear', [\App\Http\Controllers\ReservaPaseController::class, 'escanear'])->middleware('signed')->name('reservas.escanear');
@@ -238,7 +248,9 @@ Route::middleware(['auth', 'role:admin,super_admin,operador'])->prefix('admin')-
     Route::post('/estadias', [\App\Http\Controllers\Admin\EstadiaController::class, 'store'])->name('estadias.store');
     Route::get('/estadias/{estadia}', [\App\Http\Controllers\Admin\EstadiaController::class, 'show'])->name('estadias.show');
     Route::get('/estadias/{estadia}/ticket', [\App\Http\Controllers\Admin\EstadiaController::class, 'ticket'])->name('estadias.ticket');
+    Route::get('/estadias/{estadia}/escanear', [\App\Http\Controllers\Admin\EstadiaController::class, 'escanear'])->middleware('signed')->name('estadias.escanear');
     Route::post('/estadias/{estadia}/salida', [\App\Http\Controllers\Admin\EstadiaController::class, 'salida'])->name('estadias.salida');
+    Route::post('/estadias/{estadia}/cobrar', [\App\Http\Controllers\Admin\EstadiaController::class, 'cobrar'])->name('estadias.cobrar');
     Route::post('/estadias/{estadia}/inicio-manual', [\App\Http\Controllers\Admin\EstadiaController::class, 'inicioManual'])->name('estadias.inicio-manual');
 });
 

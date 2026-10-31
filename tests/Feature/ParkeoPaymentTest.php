@@ -24,6 +24,7 @@ class ParkeoPaymentTest extends TestCase
     {
         parent::setUp();
         Storage::fake('local');
+        app(\App\Services\CajaService::class)->abrir(['fondo'=>0], User::factory()->create(['role'=>'operador']));
         ConfiguracionPago::create(['titular' => 'Parke’o', 'telefono' => '999999999', 'qr_yape' => 'qr.png', 'qr_plin' => 'qr.png', 'minutos_pago' => 10]);
         Storage::disk('local')->put('qr.png', 'test');
     }

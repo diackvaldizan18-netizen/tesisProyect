@@ -34,21 +34,13 @@ class AbonoService {
             }
             $amount = $n <= 26 ? 270 : 240;
             if (empty($data['pago_verificado'])) { $this->error('Confirma que recibiste el pago mensual.'); }
-            $method = $data['metodo_pago']; $key = null;
-            if (!in_array($method, ['efectivo','yape','plin'], true)) { $this->error('Selecciona un medio de pago válido.'); }
-            if ($method === 'efectivo') {
-                if (LiquidacionService::centavos($data['efectivo_recibido'] ?? 0) < $amount * 100) { $this->error('El efectivo recibido no cubre la mensualidad.'); }
-            } else {
-                $ref = strtoupper(trim($data['referencia_pago'] ?? ''));
-                if (!preg_match('/\A[A-Z0-9-]{1,80}\z/', $ref)) { $this->error('Indica la operación verificada en la cuenta del negocio.'); }
-                $key = $method.':'.$ref;
-                if (Pago::where('operacion_unica',$key)->exists()) { $this->error('Esa operación ya fue registrada.'); }
-            }
+            $parts=app(PagoPresencialService::class)->preparar($amount*100,$data,false);
             $abono = Abono::create(['abonado_id'=>$cliente->id, 'espacio_id'=>$space->id, 'inicio'=>$inicio, 'fin'=>$fin,
                 'zona'=>$n <= 26 ? 'techo' : 'patio', 'monto'=>$amount, 'registrado_por'=>$staff->id]);
-            Pago::create(['abono_id'=>$abono->id, 'codigo_pago'=>'ABO-'.Str::uuid(), 'metodo_pago'=>$method, 'monto'=>$amount,
-                'estado'=>'aprobado', 'operacion_unica'=>$key, 'referencia_pago'=>$ref ?? null,
+            $pago = Pago::create($parts + ['abono_id'=>$abono->id, 'codigo_pago'=>'ABO-'.Str::uuid(), 'monto'=>$amount,
+                'estado'=>'aprobado', 'referencia_pago'=>null,
                 'pagado_at'=>now(), 'revisado_at'=>now(), 'revisado_por'=>$staff->id, 'motivo_revision'=>'Mensualidad recibida y verificada por el encargado.']);
+            app(CajaService::class)->registrarCobro($pago,$staff);
             return $abono;
         });
     }

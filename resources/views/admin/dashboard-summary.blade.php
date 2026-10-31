@@ -6,6 +6,7 @@ $metrics = [
  ['Reservas atendidas','reserved','clock','Con ingreso registrado'],
  ['Cobros del periodo (brutos)','paid','wallet','Antes de reembolsos'],
 ];
+if ($compactReception ?? false) { $metrics = array_values(array_filter($metrics, fn($m) => !in_array($m[1], ['entries','exits']))); }
 if ($owner) {
  $metrics[] = ['Reembolsos aprobados','refunds','arrow','Procesados en este periodo'];
  $metrics[] = ['Neto del periodo','net','chart','Cobros menos reembolsos'];

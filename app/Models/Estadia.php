@@ -12,12 +12,13 @@ class Estadia extends Model
     {
         return [
             'autoriza_movimiento'=>'boolean', 'llave_recibida'=>'boolean', 'salida_prevista'=>'datetime',
-            'hora_ingreso' => 'datetime', 'inicio_cobro' => 'datetime', 'hora_salida' => 'datetime', 'liquidado_hasta' => 'datetime',
+            'pago_registrado_at'=>'datetime', 'hora_ingreso' => 'datetime', 'inicio_cobro' => 'datetime', 'hora_salida' => 'datetime', 'liquidado_hasta' => 'datetime',
             'tarifa_snapshot' => 'array', 'monto_adelantado' => 'decimal:2', 'monto_total' => 'decimal:2', 'monto_exceso' => 'decimal:2',
             'saldo_cobrado' => 'decimal:2', 'efectivo_recibido' => 'decimal:2', 'vuelto' => 'decimal:2',
         ];
     }
 
+    public function custodiaResponsable() { return $this->belongsTo(User::class, 'custodia_responsable_id'); }
     public function abono() { return $this->belongsTo(Abono::class); }
     public function reubicaciones() { return $this->hasMany(Reubicacion::class); }
     public function espacio()
@@ -57,6 +58,6 @@ class Estadia extends Model
 
     public function getEstadoLabelAttribute(): string
     {
-        return $this->hora_salida ? 'Finalizada' : ($this->inicio_cobro ? 'En estacionamiento' : 'Esperando sensor');
+        return $this->hora_salida ? 'Finalizada' : ($this->pago_registrado_at ? 'Pendiente de salida física' : ($this->inicio_cobro ? 'En estacionamiento' : 'Esperando sensor'));
     }
 }

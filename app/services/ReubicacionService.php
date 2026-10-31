@@ -16,8 +16,11 @@ class ReubicacionService {
             $source = $spaces->get($sourceId); $target = $spaces->get($targetId);
             if (!$source || !$target || $stay->espacio_id !== $sourceId || $stay->hora_salida) { $this->error('La ubicación o el ticket cambió. Actualiza antes de mover.'); }
             if ($stay->abono_id) { $this->error('El abonado conserva su espacio asignado. Esta acción es para ocupaciones temporales.'); }
+            if (!$source->abonoVigente()->exists()) { $this->error('Solo se reubican vehículos por horas que ocupan un espacio con abono vigente.'); }
             if (!$stay->inicio_cobro) { $this->error('Confirma primero el inicio de la estancia para conservar su contador.'); }
             if (!$stay->autoriza_movimiento || !$stay->llave_recibida || !$stay->ubicacion_llave) { $this->error('Necesitas la autorización del cliente y la llave registrada.'); }
+            $llaveEnCasillero = !empty($data['desde_plano']) && $stay->custodia_estado === 'guardada';
+            if (!$llaveEnCasillero && $stay->custodia_estado && ($stay->custodia_estado !== 'con_personal' || $stay->custodia_responsable_id !== $staff->id)) { $this->error('Registra primero que retiras la llave para efectuar el movimiento.'); }
             if (empty($data['movimiento_confirmado'])) { $this->error('Confirma el movimiento físico antes de cambiar la ubicación.'); }
             if (!$target->activo || $target->estado_actual !== 'libre' || $target->abonoVigente()->exists()) { $this->error('El destino no está libre o pertenece a otro abonado. Elige un espacio libre sin asignación mensual.'); }
             if (!$target->vehiculoTipos()->where('vehiculo_tipos.id',$stay->vehiculo_tipo_id)->where('activo',true)->exists()) { $this->error('El destino no admite este tipo de vehículo.'); }

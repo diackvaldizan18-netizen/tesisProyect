@@ -18,6 +18,7 @@ class AbonadosTest extends TestCase {
     protected function setUp(): void {
         parent::setUp(); $this->travelTo(now()->setDate(2026,10,27)->setTime(10,0));
         $this->staff=User::factory()->create(['role'=>'operador']);
+        app(\App\Services\CajaService::class)->abrir(['fondo'=>0],$this->staff);
         $this->tipo=VehiculoTipo::create(['codigo'=>'auto','nombre'=>'Auto','activo'=>true]);
         Tarifa::create(['vehiculo_tipo_id'=>$this->tipo->id,'nombre'=>'Hora','tipo_tarifa'=>'por_hora','monto_por_hora'=>5,'monto_por_fraccion'=>5,'minutos_fraccion'=>60,'tolerancia_minutos'=>5,'penalidad_por_fraccion'=>5,'activo'=>true]);
         $this->techo=$this->space('T01'); $this->patio=$this->space('T27');
@@ -51,7 +52,7 @@ class AbonadosTest extends TestCase {
         $this->assertFalse(app(ReservaDisponibilidadService::class)->estadoParaTarjeta($this->techo->fresh())['puede_reservar']);
         $this->actingAs(User::factory()->create())->post(route('reservas.store',$this->techo),['placa'=>'WEB123','vehiculo_tipo_id'=>$this->tipo->id,'duracion_minutos'=>60])->assertRedirect();
         $this->assertSame(0,Reserva::count());
-        try { $this->entrar($this->techo,['llave_recibida'=>0]); $this->fail(); } catch(ValidationException $e) {}
+        try { $this->entrar($this->techo,['autoriza_movimiento'=>0]); $this->fail(); } catch(ValidationException $e) {}
         $stay=$this->entrar($this->techo);
         $this->assertNull($stay->abono_id);
         $this->assertSame('Casillero 12',$stay->ubicacion_llave);
@@ -92,18 +93,18 @@ class AbonadosTest extends TestCase {
         $this->get(route('admin.abonados.index',['buscar'=>'ABO123']))->assertOk()->assertSee('Cliente mensual');
         $this->get(route('admin.abonados.show',$a->abonado_id))->assertOk()->assertSee('data:image/svg+xml;base64,',false);
         $this->get($url)->assertRedirect(); $this->get($url.'&x=1')->assertForbidden();
-        $this->get(route('admin.estadias.create'))->assertOk()->assertSee('Abono vigente');
+        $this->get(route('admin.estadias.create',['modalidad'=>'abonado']))->assertOk()->assertSee('Abonado vigente');
         $this->assertSame(0,Estadia::count());
         $stay=$this->entrar($this->techo);
         $this->get(route('admin.estadias.show',$stay))->assertOk()->assertSee('Confirmar reubicación');
     }
-    public function test_http_creation_renewal_and_duplicate_payment(): void {
+    public function test_http_creation_renewal_and_duplicate_period(): void {
         $this->actingAs($this->staff);
-        $data=['nombre'=>'Cliente','placas_texto'=>'ABC-123, XYZ789','espacio_id'=>$this->techo->id,'inicio'=>'2026-10-01','metodo_pago'=>'yape','referencia_pago'=>'OPER123','pago_verificado'=>1];
+        $data=['nombre'=>'Cliente','placas_texto'=>'ABC-123, XYZ789','espacio_id'=>$this->techo->id,'inicio'=>'2026-10-01','metodo_pago'=>'yape','pago_verificado'=>1];
         $this->post(route('admin.abonados.store'),$data)->assertSessionHasNoErrors()->assertRedirect();
         $a=Abono::firstOrFail();
         $this->assertSame(['ABC123','XYZ789'],$a->abonado->placas);
-        $this->post(route('admin.abonados.store'),array_replace($data,['inicio'=>'2026-11-01','abonado_id'=>$a->abonado_id]))->assertSessionHasErrors();
+        $this->post(route('admin.abonados.store'),array_replace($data,['abonado_id'=>$a->abonado_id]))->assertSessionHasErrors();
         $this->post(route('admin.abonados.store'),['abonado_id'=>$a->abonado_id,'espacio_id'=>$this->techo->id,'inicio'=>'2026-11-01','metodo_pago'=>'efectivo','efectivo_recibido'=>270,'pago_verificado'=>1])->assertSessionHasNoErrors();
         $this->assertSame(2,Abono::count());
     }
@@ -116,13 +117,18 @@ class AbonadosTest extends TestCase {
             'estado'=>'confirmada','tolerancia_llegada_minutos'=>15,'minutos_fraccion_snapshot'=>60,'tolerancia_minutos'=>5,'penalidad_por_fraccion'=>5]);
         Pago::create(['reserva_id'=>$r->id,'user_id'=>$customer->id,'codigo_pago'=>'PAY-MOVE','metodo_pago'=>'efectivo','monto'=>5,'estado'=>'aprobado']);
         $stay=$this->entrar($this->techo,['reserva_id'=>$r->id]);
+        // The assignment becomes effective after this historical reservation arrived.
+        $subscriber=Abonado::create(['nombre'=>'Titular','placas'=>['ABO123']]);
+        $assignment=Abono::create(['abonado_id'=>$subscriber->id,'espacio_id'=>$this->techo->id,'inicio'=>now(),'fin'=>now()->addMonth(),'zona'=>'techo','monto'=>270,'registrado_por'=>$this->staff->id]);
+        Pago::create(['abono_id'=>$assignment->id,'codigo_pago'=>'ABO-MOVE','metodo_pago'=>'efectivo','monto'=>270,'estado'=>'aprobado']);
         app(ReubicacionService::class)->mover($stay,['origen_id'=>$this->techo->id,'destino_id'=>$this->patio->id,'motivo'=>'Reorganización autorizada','movimiento_confirmado'=>1],$this->staff);
         $this->assertSame($this->techo->id,$r->fresh()->espacio_id);
-        $this->assertTrue(app(ReservaDisponibilidadService::class)->estadoParaTarjeta($this->techo->fresh())['puede_reservar']);
+        $this->assertFalse(app(ReservaDisponibilidadService::class)->estadoParaTarjeta($this->techo->fresh())['puede_reservar']);
+        $this->assertSame('libre',$this->techo->fresh()->estado_actual);
         $stay->refresh();
         $this->travel(30)->minutes();
         $quote=Crypt::encryptString(json_encode(['id'=>$stay->id,'inicio'=>$stay->inicio_cobro->toIso8601String(),'corte'=>now()->toIso8601String()]));
-        app(EstadiaService::class)->salir($stay,['cotizacion'=>$quote],$this->staff);
+        $stay->update(['llave_recibida'=>false]); app(EstadiaService::class)->salir($stay,['salida_confirmada'=>1],$this->staff);
         $this->assertSame('finalizada',$r->fresh()->estado);
         $this->assertSame('libre',$this->patio->fresh()->estado_actual);
         $this->assertSame('0.00',$stay->fresh()->saldo_cobrado);
@@ -160,9 +166,9 @@ class AbonadosTest extends TestCase {
         $quote=Crypt::encryptString(json_encode(['id'=>$stay->id,'inicio'=>$stay->inicio_cobro->toIso8601String(),'corte'=>now()->toIso8601String()]));
         $bill=app(LiquidacionService::class)->calcular($stay,now());
         $this->assertSame(12000,$bill['saldo_centavos']);
-        try { app(EstadiaService::class)->salir($stay,['cotizacion'=>$quote],$this->staff); $this->fail(); } catch(ValidationException $e) {}
+        try { $stay->update(['llave_recibida'=>false]); app(EstadiaService::class)->salir($stay,['salida_confirmada'=>1],$this->staff); $this->fail(); } catch(ValidationException $e) {}
         $this->assertNull($stay->fresh()->hora_salida);
-        app(EstadiaService::class)->salir($stay,['cotizacion'=>$quote,'pago_verificado'=>1,'metodo_pago'=>'efectivo','efectivo_recibido'=>120],$this->staff);
+        app(EstadiaService::class)->cobrar($stay,['cotizacion'=>$quote,'pago_verificado'=>1,'metodo_pago'=>'efectivo','efectivo_recibido'=>120],$this->staff); app(EstadiaService::class)->salir($stay,['salida_confirmada'=>1],$this->staff);
         $this->assertSame('120.00',$stay->fresh()->saldo_cobrado);
     }
 }

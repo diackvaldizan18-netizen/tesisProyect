@@ -54,7 +54,7 @@
             </header>
 
             <section class="admin-content">
-                <a id="aviso-pagos" class="payment-notice {{ request()->routeIs('superadmin.dashboard', 'admin.reportes.index', 'admin.clientes-vehiculos.index') ? 'notice-compact' : '' }}" data-state="loading" href="{{ route('admin.pagos.index') }}" data-notifications="{{ route('admin.pagos.pendientes') }}" aria-live="polite"><span class="notice-icon"><x-icon name="wallet"/></span><span class="notice-copy"><strong data-notice-title>Consultando pagos</strong><small data-notice-detail>Comprobando solicitudes pendientes de revisión.</small></span><span class="notice-action">Ver pagos <span aria-hidden="true">→</span></span></a>
+                <a id="aviso-pagos" class="payment-notice {{ request()->routeIs('superadmin.dashboard', 'admin.reportes.index', 'admin.clientes-vehiculos.index') ? 'notice-compact' : '' }}" data-state="loading" data-hide-empty="{{ auth()->user()->esSuperAdmin() ? '0' : '1' }}" @if(!auth()->user()->esSuperAdmin()) hidden @endif href="{{ route('admin.pagos.index') }}" data-notifications="{{ route('admin.pagos.pendientes') }}" aria-live="polite"><span class="notice-icon"><x-icon name="wallet"/></span><span class="notice-copy"><strong data-notice-title>Consultando pagos</strong><small data-notice-detail>Comprobando solicitudes pendientes de revisión.</small></span><span class="notice-action">Ver pagos <span aria-hidden="true">→</span></span></a>
                 @yield('content')
             </section>
         </main>

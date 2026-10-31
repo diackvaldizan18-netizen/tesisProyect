@@ -9,9 +9,10 @@
 <h3>Mensualidades</h3>
 @foreach($abonado->abonos as $a)
 <article class="card"><strong>{{ $a->espacio->codigo }} · {{ ucfirst($a->zona) }} · S/ {{ number_format($a->monto,2) }}</strong><p>{{ $a->inicio->format('d/m/Y H:i') }} → {{ $a->fin->format('d/m/Y H:i') }} (fin exclusivo)</p><p>{{ now()->lt($a->inicio)?'Próximo periodo':(now()->lt($a->fin)?'Vigente':'Vencido') }} · Pago {{ $a->pago?->estado }}</p>
-@if(now()->gte($a->inicio) && now()->lt($a->fin))
+@include('admin.payment-breakdown',['payment'=>$a->pago])
+@if(now()->gte($a->inicio) && now()->lt($a->fin) && $a->pago?->estado === 'aprobado')
 @php($ocupante=$a->espacio->estadias()->activas()->first())
-@if($ocupante)<p>Ocupado por {{ $ocupante->placa }}.</p><a class="btn btn-secondary" href="{{ route('admin.estadias.show',$ocupante) }}">{{ $ocupante->abono_id?'Ver ticket':'Reubicar ocupante temporal' }}</a>
+@if($ocupante)<p>Ocupado por {{ $ocupante->placa }}.</p><a class="btn btn-secondary" href="{{ $ocupante->abono_id ? route('admin.estadias.show',$ocupante) : route('admin.dashboard',['reubicar'=>$ocupante->id]).'#map-relocation' }}">{{ $ocupante->abono_id?'Ver ticket':'Reubicar ocupante temporal' }}</a>
 @else<a class="btn btn-primary" href="{{ route('admin.estadias.create',['abono_id'=>$a->id,'espacio_id'=>$a->espacio_id,'placa'=>$abonado->placas[0]]) }}">Registrar llegada</a>@endif
 @endif</article>
 @endforeach</section>

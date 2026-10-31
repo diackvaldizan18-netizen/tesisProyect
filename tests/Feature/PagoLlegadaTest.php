@@ -22,6 +22,7 @@ class PagoLlegadaTest extends TestCase
         $this->travelTo(now()->startOfDay()->addHours(9));
         $this->cliente = User::factory()->create();
         $this->staff = User::factory()->create(['role' => 'operador']);
+        app(\App\Services\CajaService::class)->abrir(['fondo'=>0],$this->staff);
         $tipo = VehiculoTipo::create(['nombre' => 'Auto', 'codigo' => 'auto', 'activo' => true]);
         Tarifa::create(['vehiculo_tipo_id' => $tipo->id, 'nombre' => 'Hora', 'tipo_tarifa' => 'por_hora', 'monto_por_hora' => 5,
             'tolerancia_minutos' => 5, 'penalidad_por_fraccion' => 5, 'minutos_fraccion' => 60, 'activo' => true]);
@@ -47,6 +48,19 @@ class PagoLlegadaTest extends TestCase
         $this->get(route('admin.estadias.create', ['reserva' => $this->reserva->id]))->assertOk()->assertSee('Cobro al llegar');
         $this->assertSame(0, Estadia::count());
         $this->assertSame(0, Pago::where('estado', 'aprobado')->count());
+    }
+
+    public function test_mixed_entry_keeps_single_payment_and_net_cash(): void
+    {
+        $this->actingAs($this->staff)->post(route('admin.estadias.store'), array_replace($this->entrada,[
+            'metodo_pago'=>'plin','pago_combinado'=>1,'monto_digital'=>2,'efectivo_recibido'=>10,'referencia_pago'=>'ARRIVAL-MIX',
+        ]))->assertSessionHasNoErrors();
+        $pago=Pago::firstOrFail();
+        $this->assertSame(['efectivo'=>300,'plin'=>200],$pago->desglose);
+        $this->assertEquals(700,$pago->vuelto_centavos);
+        $turno=\App\Models\CajaTurno::firstOrFail();
+        $this->assertSame(300,app(\App\Services\CajaService::class)->resumen($turno)['esperado']);
+        $this->assertSame(1,Pago::count());
     }
 
     public function test_cash_entry_is_atomic_and_cannot_be_repeated(): void

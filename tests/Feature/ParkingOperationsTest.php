@@ -35,6 +35,7 @@ class ParkingOperationsTest extends TestCase
         parent::setUp();
         $this->travelTo(now()->setTime(10, 0, 0));
         $this->operator = User::factory()->create(['role' => 'operador']);
+        app(\App\Services\CajaService::class)->abrir(['fondo'=>0],$this->operator);
         $this->type = VehiculoTipo::create(['nombre' => 'Automóvil', 'codigo' => 'auto', 'activo' => true]);
         $this->space = Espacio::create(['codigo' => 'E01', 'estado_actual' => 'libre', 'activo' => true, 'modo_monitoreo' => 'manual']);
         $this->space->vehiculoTipos()->attach($this->type);
@@ -84,16 +85,21 @@ class ParkingOperationsTest extends TestCase
         $this->get(route('admin.estadias.ticket', $e))->assertOk()->assertSee($e->codigo_ticket);
         $this->travel(75)->minutes(); // 65 minutes billed: hour 5 + fraction 2.
         $quote = $this->quote($e);
-        $this->post(route('admin.estadias.salida', $e), ['cotizacion' => $quote, 'metodo_pago' => 'efectivo', 'efectivo_recibido' => 10, 'pago_verificado' => 1])->assertRedirect()->assertSessionHasNoErrors();
+        $this->post(route('admin.estadias.cobrar', $e), ['cotizacion' => $quote, 'metodo_pago' => 'efectivo', 'efectivo_recibido' => 10, 'pago_verificado' => 1])->assertRedirect()->assertSessionHasNoErrors();
         $e->refresh();
         $this->assertSame('7.00', $e->saldo_cobrado);
         $this->assertSame('3.00', $e->vuelto);
+        $this->assertNull($e->hora_salida);
+        $this->assertSame('ocupado', $this->space->fresh()->estado_actual);
+        $this->get(route('admin.estadias.show',$e))->assertOk()->assertSee('Pago recibido')->assertSee('Confirmar salida');
+        $this->post(route('admin.estadias.salida',$e),['salida_confirmada'=>1])->assertSessionHasNoErrors();
+        $e->refresh();
         $this->assertNull($e->placa_activa);
         $this->assertNull($e->espacio_activo_id);
         $this->assertSame('libre', $this->space->fresh()->estado_actual);
         $this->assertNull($e->pagoSalida->reserva_id);
         $this->get(route('admin.estadias.show', $e))->assertOk()->assertSee('Salida registrada');
-        $this->post(route('admin.estadias.salida', $e), ['cotizacion' => $quote, 'metodo_pago' => 'efectivo', 'efectivo_recibido' => 10, 'pago_verificado' => 1])->assertSessionHasErrors('salida');
+        $this->post(route('admin.estadias.cobrar', $e), ['cotizacion' => $quote, 'metodo_pago' => 'efectivo', 'efectivo_recibido' => 10, 'pago_verificado' => 1])->assertSessionHasErrors('salida');
         $this->assertSame(1, Pago::whereNotNull('estadia_id')->count());
     }
 
@@ -102,12 +108,12 @@ class ParkingOperationsTest extends TestCase
         $e = $this->enter();
         $this->actingAs($this->operator);
         $payload = ['cotizacion' => $this->quote($e), 'metodo_pago' => 'efectivo', 'efectivo_recibido' => 2];
-        $this->post(route('admin.estadias.salida', $e), $payload)->assertSessionHasErrors('pago_verificado');
+        $this->post(route('admin.estadias.cobrar', $e), $payload)->assertSessionHasErrors('pago_verificado');
         $payload['pago_verificado'] = 1;
-        $this->post(route('admin.estadias.salida', $e), $payload)->assertSessionHasErrors('efectivo_recibido');
+        $this->post(route('admin.estadias.cobrar', $e), $payload)->assertSessionHasErrors('efectivo_recibido');
         $this->travel(6)->minutes();
         $payload['efectivo_recibido'] = 20;
-        $this->post(route('admin.estadias.salida', $e), $payload)->assertSessionHasErrors('salida');
+        $this->post(route('admin.estadias.cobrar', $e), $payload)->assertSessionHasErrors('salida');
         $this->assertNull($e->fresh()->hora_salida);
         $this->assertSame(0, Pago::count());
     }
@@ -119,11 +125,13 @@ class ParkingOperationsTest extends TestCase
         $e = $this->enter($r);
         $this->travel(80)->minutes();
         $payload = ['cotizacion' => $this->quote($e), 'metodo_pago' => 'yape', 'referencia_pago' => '12345', 'pago_verificado' => 1];
-        $this->actingAs($this->operator)->post(route('admin.estadias.salida', $e), $payload)->assertSessionHasErrors('referencia_pago');
+        $this->actingAs($this->operator)->post(route('admin.estadias.cobrar', $e), $payload)->assertSessionHasErrors('referencia_pago');
         $payload['referencia_pago'] = '99999';
-        $this->post(route('admin.estadias.salida', $e), $payload)->assertRedirect()->assertSessionHasNoErrors();
+        $this->post(route('admin.estadias.cobrar', $e), $payload)->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame('3.00', $e->fresh()->saldo_cobrado);
         $this->assertSame('8.00', $e->fresh()->monto_total);
+        $this->assertSame('confirmada', $r->fresh()->estado);
+        $this->post(route('admin.estadias.salida',$e),['salida_confirmada'=>1])->assertSessionHasNoErrors();
         $this->assertSame('finalizada', $r->fresh()->estado);
     }
 
@@ -135,7 +143,7 @@ class ParkingOperationsTest extends TestCase
         $this->assertSame(0, app(ReservaService::class)->procesarInasistencias());
         $this->actingAs($r->usuario)->post(route('reservas.solicitarReembolso', $r))->assertRedirect();
         $this->assertSame(0, Reembolso::count());
-        $this->actingAs($this->operator)->post(route('admin.estadias.salida', $e), ['cotizacion' => $this->quote($e)])->assertRedirect()->assertSessionHasNoErrors();
+        $this->actingAs($this->operator)->post(route('admin.estadias.salida', $e), ['salida_confirmada'=>1])->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame('0.00', $e->fresh()->saldo_cobrado);
         $this->assertSame(1, Pago::count());
     }
@@ -241,7 +249,7 @@ class ParkingOperationsTest extends TestCase
         $this->actingAs($this->operator);
         $quote = Crypt::encryptString(json_encode(['id' => $e->id + 1, 'inicio' => $e->inicio_cobro->toIso8601String(), 'corte' => now()->toIso8601String()]));
         foreach ([$quote, 'alterado'] as $value) {
-            $this->post(route('admin.estadias.salida', $e), ['cotizacion' => $value, 'metodo_pago' => 'efectivo', 'efectivo_recibido' => 10, 'pago_verificado' => 1])->assertSessionHasErrors('salida');
+            $this->post(route('admin.estadias.cobrar', $e), ['cotizacion' => $value, 'metodo_pago' => 'efectivo', 'efectivo_recibido' => 10, 'pago_verificado' => 1])->assertSessionHasErrors('salida');
         }
         $this->assertNull($e->fresh()->hora_salida);
     }

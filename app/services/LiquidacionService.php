@@ -16,6 +16,9 @@ class LiquidacionService
 
     public function calcular(Estadia $estadia, CarbonInterface $hasta): array
     {
+        if ($estadia->pago_registrado_at) {
+            return ['minutos'=>$estadia->minutos_cobrados,'total_centavos'=>self::centavos($estadia->monto_total),'adelanto_centavos'=>self::centavos($estadia->monto_adelantado),'exceso_centavos'=>self::centavos($estadia->monto_exceso),'saldo_centavos'=>0,'detalle'=>'Pago registrado. Importe cerrado; pendiente de salida física.','hasta'=>$estadia->liquidado_hasta];
+        }
         if (! $estadia->inicio_cobro) {
             throw ValidationException::withMessages(['salida' => 'Todavía no está definido el inicio del cobro. Confirma la lectura o registra una contingencia manual.']);
         }

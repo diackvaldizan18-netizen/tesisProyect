@@ -34,6 +34,7 @@ class PagoRevisionController extends Controller
             $pago->update(['estado' => $data['decision'], 'revisado_por' => $request->user()->id, 'revisado_at' => now(),
                 'motivo_revision' => $data['motivo_revision'] ?? null, 'pagado_at' => $data['decision'] === 'aprobado' ? now() : null,
                 'operacion_unica' => $data['decision'] === 'rechazado' ? null : $pago->operacion_unica]);
+            if ($data['decision'] === 'aprobado') app(\App\Services\CajaService::class)->registrarCobro($pago,$request->user());
             $reserva->update($data['decision'] === 'aprobado'
              ? ['estado' => 'confirmada', 'pagado_at' => now(), 'expires_at' => null]
              : ['expires_at' => now()->addMinutes(ConfiguracionPago::actual()->minutos_pago)]);

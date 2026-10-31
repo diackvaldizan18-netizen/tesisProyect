@@ -9,7 +9,7 @@ class Pago extends Model
     protected $table = 'pagos';
 
     protected $fillable = [
-        'reserva_id', 'estadia_id', 'abono_id',
+        'reserva_id', 'estadia_id', 'abono_id', 'desglose', 'efectivo_entregado_centavos', 'vuelto_centavos',
         'user_id',
         'codigo_pago',
         'metodo_pago',
@@ -23,9 +23,13 @@ class Pago extends Model
     protected function casts(): array
     {
         return [
-            'monto' => 'decimal:2',
+            'monto' => 'decimal:2', 'desglose'=>'array',
             'pagado_at' => 'datetime', 'enviado_at' => 'datetime', 'revisado_at' => 'datetime',
         ];
+    }
+
+    public function getMedioLabelAttribute(): string {
+        return $this->desglose ? implode(' + ',array_map('ucfirst',array_keys($this->desglose))) : ucfirst($this->metodo_pago);
     }
 
     public function reserva()
