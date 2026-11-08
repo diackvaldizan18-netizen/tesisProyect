@@ -4,12 +4,13 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Support\MigrationSchema;
 
 return new class extends Migration {
     public function up(): void
     {
-        Schema::table('users', fn (Blueprint $table) => $table->boolean('must_change_password')->default(false));
-        Schema::table('ventas', function (Blueprint $table) {
+        MigrationSchema::table('users', fn (Blueprint $table) => $table->boolean('must_change_password')->default(false));
+        MigrationSchema::table('ventas', function (Blueprint $table) {
             $table->foreignId('caja_apertura_id')->nullable()->constrained('caja_aperturas')->restrictOnDelete();
             $table->index(['caja_apertura_id', 'fecha']);
         });

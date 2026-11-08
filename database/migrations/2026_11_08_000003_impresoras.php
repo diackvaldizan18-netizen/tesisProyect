@@ -3,11 +3,12 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Support\MigrationSchema;
 
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('impresoras', function (Blueprint $t) {
+        MigrationSchema::create('impresoras', function (Blueprint $t) {
             $t->id();
             $t->string('nombre', 80);
             $t->string('tipo', 20);

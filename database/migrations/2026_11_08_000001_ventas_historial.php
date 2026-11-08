@@ -3,11 +3,12 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Support\MigrationSchema;
 
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('ventas', function (Blueprint $t) {
+        MigrationSchema::create('ventas', function (Blueprint $t) {
             $t->id();
             $t->string('origen_tipo', 16);
             $t->unsignedBigInteger('origen_id');
@@ -31,8 +32,8 @@ return new class extends Migration {
             $t->unique(['origen_tipo', 'origen_id', 'version']);
             $t->index(['fecha', 'estado']);
         });
-        Schema::table('pagos', fn (Blueprint $t) => $t->foreignId('venta_id')->nullable()->constrained('ventas')->restrictOnDelete());
-        Schema::create('venta_correcciones', function (Blueprint $t) {
+        MigrationSchema::table('pagos', fn (Blueprint $t) => $t->foreignId('venta_id')->nullable()->constrained('ventas')->restrictOnDelete());
+        MigrationSchema::create('venta_correcciones', function (Blueprint $t) {
             $t->id();
             $t->foreignId('venta_id')->constrained('ventas')->restrictOnDelete();
             $t->foreignId('venta_nueva_id')->nullable()->constrained('ventas')->restrictOnDelete();
@@ -44,7 +45,7 @@ return new class extends Migration {
             $t->string('idempotencia', 80)->unique();
             $t->timestamps();
         });
-        Schema::table('caja_movimientos', function (Blueprint $t) {
+        MigrationSchema::table('caja_movimientos', function (Blueprint $t) {
             $t->foreignId('venta_correccion_id')->nullable()->constrained('venta_correcciones')->restrictOnDelete();
             $t->boolean('ajuste_venta')->default(false);
         });

@@ -3,11 +3,12 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Support\MigrationSchema;
 
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('caja_cierres', function (Blueprint $t) {
+        MigrationSchema::create('caja_cierres', function (Blueprint $t) {
             $t->id();
             $t->timestamp('inicio_at');
             $t->timestamp('fin_at');
@@ -20,10 +21,10 @@ return new class extends Migration {
             $t->unsignedInteger('reembolsos_count')->default(0);
             $t->timestamps();
         });
-        Schema::table('pagos', function (Blueprint $t) {
+        MigrationSchema::table('pagos', function (Blueprint $t) {
             $t->foreignId('caja_cierre_id')->nullable()->constrained('caja_cierres')->restrictOnDelete();
         });
-        Schema::table('reembolsos', function (Blueprint $t) {
+        MigrationSchema::table('reembolsos', function (Blueprint $t) {
             $t->foreignId('caja_cierre_id')->nullable()->constrained('caja_cierres')->restrictOnDelete();
         });
     }

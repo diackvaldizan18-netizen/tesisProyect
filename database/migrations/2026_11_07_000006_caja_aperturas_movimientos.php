@@ -3,11 +3,12 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Support\MigrationSchema;
 
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('caja_aperturas', function (Blueprint $table) {
+        MigrationSchema::create('caja_aperturas', function (Blueprint $table) {
             $table->id();
             $table->string('nombre')->default('Caja 01');
             $table->decimal('monto_inicial', 12, 2);
@@ -16,7 +17,7 @@ return new class extends Migration {
             $table->unsignedTinyInteger('abierta_unica')->nullable()->unique();
             $table->timestamps();
         });
-        Schema::create('caja_movimientos', function (Blueprint $table) {
+        MigrationSchema::create('caja_movimientos', function (Blueprint $table) {
             $table->id();
             $table->foreignId('caja_apertura_id')->constrained('caja_aperturas')->restrictOnDelete();
             $table->foreignId('operador_id')->constrained('users')->restrictOnDelete();
@@ -26,8 +27,8 @@ return new class extends Migration {
             $table->string('motivo', 255);
             $table->timestamps();
         });
-        Schema::table('pagos', fn (Blueprint $table) => $table->foreignId('caja_apertura_id')->nullable()->constrained('caja_aperturas')->restrictOnDelete());
-        Schema::table('caja_cierres', function (Blueprint $table) {
+        MigrationSchema::table('pagos', fn (Blueprint $table) => $table->foreignId('caja_apertura_id')->nullable()->constrained('caja_aperturas')->restrictOnDelete());
+        MigrationSchema::table('caja_cierres', function (Blueprint $table) {
             $table->foreignId('caja_apertura_id')->nullable()->unique()->constrained('caja_aperturas')->restrictOnDelete();
             $table->decimal('monto_inicial', 12, 2)->default(0);
             $table->decimal('ingresos_manuales', 12, 2)->default(0);
