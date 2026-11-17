@@ -28,6 +28,7 @@ export default defineConfig({
                 'resources/css/pages/ingreso-presencial.css',
                 'resources/css/pages/operacion-espacio.css',
                 'resources/css/pages/abonados.css',
+                'resources/css/pages/vehiculos-activos.css',
                 'resources/css/pages/ticket-entrada.css',
                 'resources/css/pages/qr-salida.css',
                 'resources/css/pages/impresoras.css',

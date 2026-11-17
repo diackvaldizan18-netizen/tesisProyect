@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Abono;
 use App\Models\Espacio;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class MapaOperativoService
 {
@@ -16,7 +17,7 @@ class MapaOperativoService
             $estado = $disponibilidad->estadoParaTarjeta($espacio);
             $estadia = $espacio->relationLoaded('estadias')
                 ? $espacio->estadias->first()
-                : $espacio->estadias()->activas()->with('abono')->first();
+                : $espacio->estadias()->activas()->with('abono.abonado')->first();
 
             if ($espacio->estado_actual !== 'ocupado' || !$estadia) {
                 return [$espacio->id => $estado];
@@ -33,7 +34,8 @@ class MapaOperativoService
 
             if ($estadia->abono_id && $abonadosVigentes->has($estadia->abono?->abonado_id)) {
                 $estado['estado_visual'] = 'abonado';
-                $estado['estado_texto'] = 'Abonado';
+                $nombre = trim((string) $estadia->abono?->abonado?->nombre);
+                $estado['estado_texto'] = $nombre === '' ? 'Abonado' : Str::limit(Str::before($nombre, ' '), 9, '…');
             } elseif ($this->excedio($estadia)) {
                 $estado['estado_visual'] = 'excedido';
                 $estado['estado_texto'] = 'Tiempo excedido';

@@ -3,7 +3,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\{CajaMovimiento, Espacio, Estadia, Pago, Reserva};
-use App\Services\{MapaOperativoService, ReservaDisponibilidadService, ReservaService};
+use App\Services\{LiquidacionService, MapaOperativoService, ReservaDisponibilidadService, ReservaService};
+use Illuminate\Support\Collection;
 
 class DashboardController extends Controller
 {
@@ -11,10 +12,11 @@ class DashboardController extends Controller
     {
         $reservas->procesarReservasAutomaticas();
         $espacios = Espacio::conEstadoOperativo()->with(['sensor','vehiculoTipos.tarifas',
-            'estadias' => fn ($q) => $q->with('reserva','abono')->activas(),
+            'estadias' => fn ($q) => $q->with('reserva','abono.abonado','vehiculoTipo')->activas(),
             'reservas' => fn ($q) => $q->with(['usuario', 'pagos'])->whereIn('estado',['pendiente_pago','confirmada'])->whereNull('inasistencia_at')->whereDoesntHave('estadia'),
         ])->where('activo',true)->orderBy('codigo')->get();
         $disponibilidadPorEspacio = $mapa->estados($espacios, $disponibilidad);
+        $vehiculosActivos = $this->vehiculosActivos($espacios, $disponibilidadPorEspacio);
         $libres = $espacios->where('estado_actual','libre')->count();
         $activas = Estadia::activas()->count();
         $pendientes = Pago::where('estado','pendiente')->whereNotNull('enviado_at')->count();
@@ -23,19 +25,49 @@ class DashboardController extends Controller
             + CajaMovimiento::where('ajuste_venta',true)->where('tipo','ingreso')->whereDate('created_at',today())->sum('monto')
             - CajaMovimiento::where('ajuste_venta',true)->where('tipo','egreso')->whereDate('created_at',today())->sum('monto');
         $llegadas = Reserva::with('usuario','espacio')->where('estado','confirmada')->whereDoesntHave('estadia')->whereNull('inasistencia_at')->orderBy('fecha_reserva')->orderBy('hora_inicio')->limit(5)->get();
-        return response()->view('admin.dashboard',compact('espacios','disponibilidadPorEspacio','libres','activas','pendientes','cobros','llegadas'))->header('Cache-Control','no-store');
+        return response()->view('admin.dashboard',compact('espacios','disponibilidadPorEspacio','vehiculosActivos','libres','activas','pendientes','cobros','llegadas'))->header('Cache-Control','no-store');
     }
 
     public function estadoMapa(ReservaService $reservas, ReservaDisponibilidadService $disponibilidad, MapaOperativoService $mapa)
     {
         $reservas->procesarReservasAutomaticas();
         $espacios = Espacio::conEstadoOperativo()->with(['sensor', 'vehiculoTipos.tarifas',
-            'estadias' => fn ($q) => $q->with('abono')->activas(),
+            'estadias' => fn ($q) => $q->with('abono.abonado','vehiculoTipo')->activas(),
         ])->where('activo', true)->orderBy('codigo')->get();
         $estados = $mapa->estados($espacios, $disponibilidad);
         return response()->json(['espacios' => $espacios->map(fn ($espacio) => [
             'id' => $espacio->id, ...$estados[$espacio->id],
-        ])])->header('Cache-Control', 'no-store');
+        ]), 'vehiculos_activos' => $this->vehiculosActivos($espacios, $estados)])->header('Cache-Control', 'no-store');
+    }
+
+    private function vehiculosActivos(Collection $espacios, Collection $estados): Collection
+    {
+        $ahora = now();
+        $liquidaciones = app(LiquidacionService::class);
+
+        return $espacios->flatMap(function (Espacio $espacio) use ($estados, $ahora, $liquidaciones) {
+            return $espacio->estadias->filter(function (Estadia $estadia) {
+                return ! $estadia->abono_id
+                    && in_array($estadia->tarifa_snapshot['tipo_tarifa'] ?? null, ['por_hora', 'bloque_horas'], true);
+            })->map(function (Estadia $estadia) use ($espacio, $estados, $ahora, $liquidaciones) {
+                $importe = $estadia->inicio_cobro
+                    ? $liquidaciones->calcular($estadia, $ahora)['total_centavos'] / 100
+                    : 0;
+
+                return [
+                    'id' => $estadia->id,
+                    'placa' => $estadia->placa,
+                    'tipo' => $estadia->vehiculoTipo?->nombre ?? '—',
+                    'espacio' => $espacio->codigo,
+                    'tarifa' => $estadia->tarifa_snapshot['nombre'] ?? 'Tarifa registrada',
+                    'entrada' => $estadia->hora_ingreso->format('d/m/Y H:i'),
+                    'entrada_iso' => $estadia->hora_ingreso->toIso8601String(),
+                    'importe' => number_format($importe, 2, '.', ''),
+                    'estado' => $estadia->inicio_cobro ? $estados[$espacio->id]['estado_texto'] : 'Esperando sensor',
+                    'url' => route('admin.espacios.operar', ['espacio' => $espacio, 'vista' => 'ticket']),
+                ];
+            });
+        })->sortBy('entrada_iso')->values();
     }
 
     public function resumen(\Illuminate\Http\Request $request)

@@ -11,4 +11,9 @@
 .entry-key-check input{width:18px;height:18px;margin:0;flex:none}
 .entry-submit-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
 .entry-submit-actions .btn{min-height:44px}
+.subscriber-dialog{position:fixed;inset:0;margin:auto;width:min(380px,calc(100vw - 28px));max-height:calc(100dvh - 28px);box-sizing:border-box;overflow:auto;padding:20px;border:1px solid var(--color-border);border-radius:14px;background:var(--color-card);color:var(--color-text);box-shadow:0 18px 50px #0006}
+.subscriber-dialog::backdrop{background:#07111bcc}
+.subscriber-dialog h2{margin:0 0 8px;font-size:20px}.subscriber-dialog p{margin:0 0 18px;color:var(--color-muted);line-height:1.45}
+.subscriber-dialog-actions{display:flex;justify-content:flex-end;gap:9px}.subscriber-dialog-actions .btn{min-height:44px;justify-content:center}
+.subscriber-dialog .form-group{margin:12px 0}.subscriber-dialog .form-group input{width:100%}.subscriber-dialog .checkbox-row{display:flex;align-items:flex-start;gap:8px;margin:10px 0;font-size:13px}.subscriber-dialog .checkbox-row input{flex:0 0 18px;width:18px;height:18px;min-height:0;margin:2px 0 0}
 @media(max-width:650px){.entry-extras{grid-template-columns:1fr}.entry-submit-actions .btn{flex:1 1 180px;justify-content:center}}

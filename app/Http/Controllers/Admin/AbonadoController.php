@@ -257,10 +257,13 @@ class AbonadoController extends Controller {
         return response()->view('admin.abonados.pagado',compact('abono','ventaComprobante'))->header('Cache-Control','no-store');
     }
     public function mover(Request $request, Estadia $estadia, ReubicacionService $service) {
+        $liberacionAbonado = $request->boolean('retorno_ingreso');
         $data = $request->validate(['origen_id'=>'required|integer|exists:espacios,id','destino_id'=>'required|integer|exists:espacios,id',
-            'motivo'=>'required|string|min:5|max:500','movimiento_confirmado'=>'required|accepted',
+            'motivo'=>$liberacionAbonado ? 'prohibited' : 'required|string|min:5|max:500',
+            'movimiento_confirmado'=>$liberacionAbonado ? 'prohibited' : 'required|accepted',
             'autoriza_movimiento_confirmada'=>'sometimes|accepted',
             'desde_mapa'=>'nullable|in:1', 'retorno_ingreso'=>'nullable|in:1']);
+        if ($liberacionAbonado) $data['motivo'] = 'Liberación del espacio por ingreso de abonado';
         $service->mover($estadia,$data,$request->user());
         if (!empty($data['retorno_ingreso'])) return redirect()->route('admin.estadias.create',['reubicado'=>1])
             ->with('success','Espacio liberado. Revisa los datos conservados y registra el ingreso del abonado.');

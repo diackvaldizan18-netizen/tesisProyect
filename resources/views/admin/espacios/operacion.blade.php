@@ -35,9 +35,9 @@
         </form>
     @elseif($vista==='mover' && $estadia)
         <div class="space-panel-heading"><span class="eyebrow">REUBICACIÓN</span><h2>Mover vehículo</h2><p>Elige en el mapa un destino libre compatible. Se conservarán el ticket, la tarifa y el tiempo acumulado.</p></div>
-        @if($estadia->abono_id || !$estadia->llave_recibida || !$estadia->inicio_cobro)<p class="alert alert-info">Este ticket no cumple las condiciones para reubicarse. Verifica la llave y el inicio del cobro.</p>
-        @elseif($destinos->isEmpty())<p class="alert alert-info">No hay destinos libres y compatibles en este momento.</p>
-        @else<form method="post" action="{{ route('admin.estadias.reubicar',$estadia) }}" data-confirm-form="¿Confirmas que moviste físicamente el vehículo al espacio seleccionado?">@csrf<input type="hidden" name="origen_id" value="{{ $espacio->id }}"><input type="hidden" name="desde_mapa" value="1">@if(request()->boolean('retorno_ingreso'))<input type="hidden" name="retorno_ingreso" value="1">@endif
+        @if($estadia->abono_id || (!request()->boolean('retorno_ingreso') && (!$estadia->llave_recibida || !$estadia->inicio_cobro)))<p class="alert alert-info">Este ticket no cumple las condiciones para reubicarse. Verifica la llave y el inicio del cobro.</p>@if(request()->boolean('retorno_ingreso'))<a class="btn btn-secondary" href="{{ route('admin.estadias.create',['reubicacion_cancelada'=>1]) }}">Cancelar y volver al ingreso</a>@endif
+        @elseif($destinos->isEmpty())<p class="alert alert-info">No hay destinos libres y compatibles en este momento.</p>@if(request()->boolean('retorno_ingreso'))<a class="btn btn-secondary" href="{{ route('admin.estadias.create',['reubicacion_cancelada'=>1]) }}">Cancelar y volver al ingreso</a>@endif
+        @else<form method="post" action="{{ route('admin.estadias.reubicar',$estadia) }}" @unless(request()->boolean('retorno_ingreso')) data-confirm-form="¿Confirmas que moviste físicamente el vehículo al espacio seleccionado?" @endunless>@csrf<input type="hidden" name="origen_id" value="{{ $espacio->id }}"><input type="hidden" name="desde_mapa" value="1">@if(request()->boolean('retorno_ingreso'))<input type="hidden" name="retorno_ingreso" value="1">@endif
             <div class="parking-scroll"><div class="parking-lot parking-lot-techos destination-lot" role="radiogroup" aria-label="Espacio de destino">
                 <div class="lot-office">Oficina</div><div class="lot-services">Servicios</div><div class="lot-lane">↑<br>CIRCULACIÓN<br>↓</div><div class="lot-gate">ENTRADA / SALIDA ↑</div>
                 @foreach(range(1,41) as $n)@php([$x,$y,$w,$h] = \App\Services\PlanoEspacios::posicion($n))@php($destino = $destinos->first(fn ($d) => \App\Services\PlanoEspacios::numero($d->codigo) === $n))
@@ -45,7 +45,16 @@
                 @else<button type="button" class="parking-space" style="--x:{{ $x }}%;--y:{{ $y }}%;--w:{{ $w }}%;--h:{{ $h }}%" disabled><strong>{{ 'T'.str_pad((string)$n,2,'0',STR_PAD_LEFT) }}</strong><small>No disponible</small></button>@endif
                 @endforeach
             </div></div>
+            @if(request()->boolean('retorno_ingreso'))
+            <div class="space-button-row"><a class="btn btn-secondary" href="{{ route('admin.estadias.create',['reubicacion_cancelada'=>1]) }}">Cancelar y volver al ingreso</a></div>
+            <dialog id="subscriber-move-modal" class="subscriber-dialog" aria-labelledby="subscriber-move-title">
+                <h2 id="subscriber-move-title">Confirmar movimiento</h2>
+                <p id="subscriber-move-detail">Comprueba el espacio seleccionado antes de guardar.</p>
+                <div class="subscriber-dialog-actions"><button type="button" class="btn btn-secondary" id="subscriber-move-cancel">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div>
+            </dialog>
+            @else
             <div class="form-group"><label for="move-motive">Motivo del movimiento</label><input id="move-motive" name="motivo" minlength="5" maxlength="500" required value="{{ old('motivo','Reubicación autorizada') }}"></div>@unless($estadia->autoriza_movimiento)<label class="checkbox-row"><input type="checkbox" name="autoriza_movimiento_confirmada" value="1" required> Confirmo que el cliente autorizó mover su vehículo.</label>@endunless<label class="checkbox-row"><input type="checkbox" name="movimiento_confirmado" value="1" required> Moví físicamente el vehículo y comprobé el destino.</label><button class="btn btn-primary">Confirmar reubicación</button>
+            @endif
         </form>@endif
     @elseif($vista==='historial' && $estadia)
         <div class="space-panel-heading"><span class="eyebrow">TRAZABILIDAD DEL TICKET</span><h2>Historial</h2><p>Ingreso, correcciones y movimientos registrados para {{ $estadia->codigo_ticket }}.</p></div>
@@ -53,7 +62,7 @@
             @if($estadia->inicio_cobro)<li><time>{{ $estadia->inicio_cobro->format('d/m/Y H:i:s') }}</time><strong>Inicio del cobro</strong><span>{{ ['sensor'=>'Detectado por sensor','manual'=>'Ticket de ingreso','manual_contingencia'=>'Contingencia manual'][$estadia->fuente_inicio] ?? $estadia->fuente_inicio }}</span>@if($estadia->motivo_inicio_manual)<small>{{ $estadia->motivo_inicio_manual }}</small>@endif</li>@endif
             @foreach($estadia->auditorias->sortBy('created_at') as $auditoria)<li><time>{{ $auditoria->created_at->format('d/m/Y H:i:s') }}</time><strong>Corrección · {{ $auditoria->usuario?->name }}</strong><span>Motivo: {{ $auditoria->motivo }}</span>@foreach($auditoria->valores_nuevos as $campo=>$nuevo)@if(($auditoria->valores_anteriores[$campo] ?? null) != $nuevo && $campo !== 'tarifa_snapshot')<small>{{ str_replace('_',' ',$campo) }}: {{ $auditoria->valores_anteriores[$campo] ?? '—' }} → {{ $nuevo ?? '—' }}</small>@endif @endforeach</li>@endforeach
             @foreach($estadia->reubicaciones->sortBy('created_at') as $movimiento)<li><time>{{ $movimiento->created_at->format('d/m/Y H:i:s') }}</time><strong>Movimiento · {{ $movimiento->origen?->codigo }} → {{ $movimiento->destino?->codigo }}</strong><span>{{ $movimiento->operador?->name }} · {{ $movimiento->motivo }}</span></li>@endforeach
-            @if($estadia->hora_salida)<li><time>{{ $estadia->hora_salida->format('d/m/Y H:i:s') }}</time><strong>Salida y cobro</strong><span>S/ {{ number_format($estadia->saldo_cobrado,2) }} · {{ $estadia->operadorSalida?->name ?? 'Personal' }}</span></li>@endif
+            @if($estadia->hora_salida)<li><time>{{ $estadia->hora_salida->format('d/m/Y H:i:s') }}</time><strong>{{ $estadia->abono_id && !$ventaComprobante ? 'Salida de abonado' : 'Salida y cobro' }}</strong><span>{{ $estadia->abono_id && !$ventaComprobante ? 'Cubierta por mensualidad · ' : 'S/ '.number_format($estadia->saldo_cobrado,2).' · ' }}{{ $estadia->operadorSalida?->name ?? 'Personal' }}</span></li>@endif
         </ol>
     @elseif($vista==='ingreso')
         <div class="space-panel-heading"><span class="eyebrow">ESPACIO LIBRE</span><h2>Registrar ingreso en {{ $espacio->codigo }}</h2><p>Emite un ticket con la tarifa vigente. El cobro de salida aparecerá aquí al registrar el ingreso.</p></div>
@@ -70,8 +79,9 @@
         @include('admin.estadias.selector-tarifa')
         @include('admin.estadias.llaves')
         <p class="text-muted" data-entry-normal-note>{{ $espacio->modo_monitoreo === 'sensor' ? 'El cobro empezará cuando el sensor confirme la ocupación.' : 'El cobro empieza al emitir el ticket.' }}</p>
-        <div class="entry-submit-actions"><button class="btn btn-primary" id="entry-submit">Registrar y generar ticket</button><button type="button" class="btn btn-secondary" id="entry-release-space" hidden>Liberar espacio ocupado</button></div>
+        <div class="entry-submit-actions"><button class="btn btn-primary" id="entry-submit">Registrar y generar ticket</button></div>
         </form>
+        @include('admin.estadias.espacio-ocupado-modal')
     @elseif($vista==='reserva' && $reserva)
         <div class="space-panel-heading"><span class="eyebrow">ESPACIO RESERVADO</span><h2>Reserva {{ $reserva->codigo_corto }}</h2><p>{{ $reserva->usuario?->name }} · {{ $reserva->placa ?? 'Placa pendiente' }}</p></div><dl class="ticket-details"><div><dt>Llegada</dt><dd>{{ $reserva->fecha_reserva->format('d/m/Y') }} {{ substr($reserva->hora_inicio,0,5) }}</dd></div><div><dt>Estado</dt><dd>{{ str_replace('_',' ',$reserva->estado) }}</dd></div></dl>
         @if(($reserva->pago_al_llegar && $reserva->estado==='pendiente_pago') || ($reserva->estado==='confirmada' && $reserva->pagos->contains('estado','aprobado')))<a class="btn btn-primary" href="{{ route('admin.estadias.create',['reserva'=>$reserva->id]) }}">Registrar llegada</a>@else<a class="btn btn-secondary" href="{{ route('admin.pagos.index') }}">Revisar pago</a>@endif
@@ -82,6 +92,11 @@
 @push('scripts')
 @if($vista==='cobrar' && $liquidacion) @vite('resources/js/cobro.js') @endif
 @if($vista==='ingreso') @vite(['resources/js/tarifas-ingreso.js','resources/js/ingreso-abonado.js']) @endif
+@if($vista==='mover' && request()->boolean('retorno_ingreso'))
+<script>
+(()=>{const modal=document.getElementById('subscriber-move-modal');if(!modal)return;const detail=document.getElementById('subscriber-move-detail');let selected=null;document.querySelectorAll('.destination-space input[name="destino_id"]').forEach(radio=>radio.addEventListener('change',()=>{selected=radio;detail.textContent=`Mover el vehículo al espacio ${radio.closest('.destination-space').querySelector('strong').textContent}. Se conservarán su ticket, tarifa y tiempo acumulado.`;modal.showModal()}));document.getElementById('subscriber-move-cancel').addEventListener('click',()=>modal.close());modal.addEventListener('close',()=>{if(selected){selected.checked=false;selected=null}})})();
+</script>
+@endif
 <script>document.querySelectorAll('[data-confirm-form]').forEach(form=>form.addEventListener('submit',event=>{if(!confirm(form.dataset.confirmForm))event.preventDefault()}));</script>
 <script>
 (()=>{const toast=document.querySelector('[data-ticket-toast]');if(!toast)return;let timer;const show=(message,error=false)=>{clearTimeout(timer);toast.textContent=message;toast.setAttribute('role',error?'alert':'status');toast.classList.toggle('is-error',error);toast.hidden=false;timer=setTimeout(()=>toast.hidden=true,error?5000:1500)};document.querySelectorAll('[data-ticket-print]').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const button=form.querySelector('button');if(button.disabled)return;button.disabled=true;try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),headers:{Accept:'application/json'},credentials:'same-origin'});const data=await response.json();if(!response.ok)throw new Error(data.message||'No se pudo imprimir el ticket.');show('Impresión realizada')}catch(error){show(error.message||'No se pudo conectar con la impresora.',true)}finally{button.disabled=false}}));})();

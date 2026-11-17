@@ -9,9 +9,10 @@
 <div class="sidebar-space-meta"><span class="eyebrow">ESPACIO SELECCIONADO</span><strong>{{ $espacio->codigo }}</strong><span>{{ ucfirst(str_replace('_',' ',$espacio->estado_actual)) }}</span>@if($estadia)<small>{{ $estadia->placa }} · {{ $estadia->codigo_ticket }}</small>@endif</div>
 <div class="space-actions">
 @if($finalizada && $estadia)
-@foreach(['comprobante'=>['wallet','Comprobante'],'ticket'=>['ticket','Ver ticket'],'historial'=>['clock','Historial']] as $key=>[$icon,$label])<a href="{{ route('admin.espacios.operar',['espacio'=>$espacio,'vista'=>$key,'ticket'=>$estadia->id]) }}" class="{{ $vista===$key?'active':'' }}" @if($vista===$key) aria-current="page" @endif><x-icon :name="$icon"/>{{ $label }}</a>@endforeach
+@foreach(($ventaComprobante ? ['comprobante'=>['wallet','Comprobante'],'ticket'=>['ticket','Ver ticket'],'historial'=>['clock','Historial']] : ['ticket'=>['ticket','Ver ticket'],'historial'=>['clock','Historial']]) as $key=>[$icon,$label])<a href="{{ route('admin.espacios.operar',['espacio'=>$espacio,'vista'=>$key,'ticket'=>$estadia->id]) }}" class="{{ $vista===$key?'active':'' }}" @if($vista===$key) aria-current="page" @endif><x-icon :name="$icon"/>{{ $label }}</a>@endforeach
 @elseif($estadia)
-@foreach(['cobrar'=>['wallet','Cobrar'],'ticket'=>['ticket','Ver ticket'],'editar'=>['edit','Editar registro'],'mover'=>['arrow','Mover vehículo'],'historial'=>['clock','Historial']] as $key=>[$icon,$label])
+@if($esAbonadoVigente)<form method="post" action="{{ route('admin.estadias.salida-abonado',$estadia) }}">@csrf<button type="submit"><x-icon name="exit"/>Registrar salida</button></form>@endif
+@foreach(($esAbonadoVigente ? ['ticket'=>['ticket','Ver ticket'],'editar'=>['edit','Editar registro'],'historial'=>['clock','Historial']] : ['cobrar'=>['wallet','Cobrar'],'ticket'=>['ticket','Ver ticket'],'editar'=>['edit','Editar registro'],'mover'=>['arrow','Mover vehículo'],'historial'=>['clock','Historial']]) as $key=>[$icon,$label])
 <a href="{{ route('admin.espacios.operar',['espacio'=>$espacio,'vista'=>$key]) }}" class="{{ $vista===$key?'active':'' }}" @if($vista===$key) aria-current="page" @endif><x-icon :name="$icon"/>{{ $label }}</a>
 @endforeach
 @elseif($reserva)<a href="{{ route('admin.espacios.operar',['espacio'=>$espacio,'vista'=>'reserva']) }}" class="active"><x-icon name="clock"/>Ver reserva</a>

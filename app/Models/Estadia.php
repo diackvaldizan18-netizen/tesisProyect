@@ -20,6 +20,19 @@ class Estadia extends Model
     }
 
     public function abono() { return $this->belongsTo(Abono::class); }
+    public function tieneAbonoVigente(): bool
+    {
+        $abonadoId = $this->abono?->abonado_id;
+
+        return $abonadoId !== null && Abono::vigentes()->where('abonado_id', $abonadoId)->exists();
+    }
+    public function salidaCubiertaPorAbono(): bool
+    {
+        if (! $this->tieneAbonoVigente()) return false;
+        if (! $this->inicio_cobro) return true;
+
+        return app(\App\Services\LiquidacionService::class)->calcular($this, now())['saldo_centavos'] === 0;
+    }
     public function reubicaciones() { return $this->hasMany(Reubicacion::class); }
     public function auditorias() { return $this->hasMany(EstadiaAuditoria::class); }
     public function espacio()

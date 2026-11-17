@@ -63,25 +63,95 @@ class AbonadosTest extends TestCase {
         $this->assertSame(1,Pago::count());
     }
 
+    public function test_active_subscriber_exits_from_map_and_qr_without_new_sale_or_payment(): void {
+        $abono = $this->mensualidad($this->techo, ['dni'=>'12345678']);
+        $estadia = $this->entrar($this->techo, ['placa'=>'ABO123', 'abono_id'=>$abono->id]);
+        $pagosIniciales = Pago::count();
+        $finOriginal = $abono->fin->toIso8601String();
+
+        $this->actingAs($this->staff)->get(route('admin.espacios.operar', $this->techo))
+            ->assertOk()->assertSee('Registrar salida')->assertDontSee('>Cobrar<', false);
+        $qr = URL::signedRoute('admin.estadias.identificar',
+            ['estadia'=>$estadia->id, 'codigo'=>$estadia->codigo_ticket], absolute:false);
+        $this->getJson($qr)->assertOk()->assertJsonPath('estado', 'activo');
+        $this->get(route('admin.estadias.show', $estadia))->assertOk()
+            ->assertSee('Registrar salida')->assertDontSee('Cobrar / Finalizar pago');
+
+        $this->post(route('admin.estadias.salida-abonado', $estadia))
+            ->assertSessionHasNoErrors()->assertRedirect(route('admin.dashboard'));
+        $estadia = $estadia->fresh();
+        $this->assertNotNull($estadia->hora_salida);
+        $this->assertSame($this->staff->id, $estadia->operador_salida_id);
+        $this->assertSame('0.00', $estadia->saldo_cobrado);
+        $this->assertSame($pagosIniciales, Pago::count());
+        $this->assertDatabaseMissing('ventas', ['origen_tipo'=>'estadia', 'origen_id'=>$estadia->id]);
+        $this->assertSame($finOriginal, $abono->fresh()->fin->toIso8601String());
+        $this->assertSame($this->techo->id, $abono->espacio_id);
+        $this->getJson(route('admin.mapa.estado'))->assertJsonPath('espacios.0.estado_visual', 'libre')
+            ->assertJsonPath('espacios.0.estado_texto', 'Libre');
+        $this->getJson($qr)->assertOk()->assertJsonPath('estado', 'finalizado');
+        $this->get(route('admin.espacios.operar', ['espacio'=>$this->techo, 'ticket'=>$estadia->id]))
+            ->assertOk()->assertSee('Ticket finalizado')->assertDontSee('Comprobante de pago');
+        $this->get(route('admin.estadias.ticket', $estadia))->assertOk()
+            ->assertSee('Salida de abonado')->assertDontSee('Comprobante de pago');
+        $this->post(route('admin.estadias.salida-abonado', $estadia))->assertSessionHasErrors('salida');
+        $this->entrar($this->techo, ['placa'=>'ABO123', 'abono_id'=>$abono->id]);
+        $this->assertSame(2, Estadia::where('placa', 'ABO123')->count());
+    }
+
+    public function test_expired_subscriber_uses_normal_checkout(): void {
+        $abono = $this->mensualidad($this->techo);
+        $estadia = $this->entrar($this->techo, ['placa'=>'ABO123', 'abono_id'=>$abono->id]);
+        $this->travelTo($abono->fin->copy()->addMinute());
+
+        $this->actingAs($this->staff)->get(route('admin.espacios.operar', $this->techo))
+            ->assertOk()->assertSee('Cobrar')->assertDontSee('>Registrar salida<', false);
+        $this->post(route('admin.estadias.salida-abonado', $estadia))->assertSessionHasErrors('salida');
+        $this->assertNull($estadia->fresh()->hora_salida);
+        $this->get(route('admin.espacios.operar', ['espacio'=>$this->techo, 'vista'=>'cobrar']))
+            ->assertOk()->assertSee('Cobro de salida');
+    }
+
     public function test_subscriber_occupied_space_uses_existing_move_and_returns_to_entry(): void {
         $abono=$this->mensualidad($this->techo,['dni'=>'12345678','placas'=>['ABO123']]);
-        $occupant=$this->entrar($this->techo,['placa'=>'TMP123']);
+        $occupant=$this->entrar($this->techo,['placa'=>'TMP123','autoriza_movimiento'=>0,
+            'llave_recibida'=>0,'ubicacion_llave'=>null]);
         $lookup=$this->actingAs($this->staff)->getJson(route('admin.abonados.buscar-dni',['dni'=>'12345678']))
             ->assertOk()->assertJsonPath('espacio_estado','ocupado');
         $this->assertNotNull($lookup->json('mover_url'));
         $this->post(route('admin.estadias.store'),['dni'=>'12345678','placa'=>'ABO123',
             'espacio_id'=>$this->techo->id,'vehiculo_tipo_id'=>$this->tipo->id])->assertSessionHasErrors('espacio_id');
-        $this->get($lookup->json('mover_url'))->assertOk()->assertSee('Confirmar reubicación');
+        $this->get(route('admin.estadias.create'))->assertOk()
+            ->assertSee('id="entry-occupied-modal"', false)->assertDontSee('Liberar espacio ocupado');
+        $this->get($lookup->json('mover_url'))->assertOk()->assertSee('Confirmar movimiento')
+            ->assertSee('>Guardar</button>', false)->assertSee('Cancelar y volver al ingreso')
+            ->assertDontSee('Confirmo que el cliente autorizó mover su vehículo')
+            ->assertDontSee('Moví físicamente el vehículo');
+        $this->get(route('admin.estadias.create', ['reubicacion_cancelada'=>1]))->assertOk();
+        $this->assertSame($this->techo->id, $occupant->fresh()->espacio_id);
         $this->post(route('admin.estadias.reubicar',$occupant),['origen_id'=>$this->techo->id,
-            'destino_id'=>$this->patio->id,'motivo'=>'Liberar espacio del abonado',
-            'movimiento_confirmado'=>1,'desde_mapa'=>1,'retorno_ingreso'=>1])
+            'destino_id'=>$this->patio->id,'desde_mapa'=>1,'retorno_ingreso'=>1])
             ->assertSessionHasNoErrors()->assertRedirect(route('admin.estadias.create',['reubicado'=>1]));
         $this->assertSame($this->patio->id,$occupant->fresh()->espacio_id);
+        $this->assertFalse($occupant->fresh()->autoriza_movimiento);
         $this->getJson(route('admin.abonados.buscar-dni',['dni'=>'12345678']))
             ->assertOk()->assertJsonPath('espacio_estado','libre')->assertJsonPath('mover_url',null);
         $this->post(route('admin.estadias.store'),['dni'=>'12345678','placa'=>'ABO123',
             'espacio_id'=>$this->techo->id,'vehiculo_tipo_id'=>$this->tipo->id])->assertSessionHasNoErrors();
         $this->assertSame($abono->id,Estadia::where('placa','ABO123')->sole()->abono_id);
+    }
+    public function test_direct_subscriber_release_still_requires_an_assignment_and_free_destination(): void {
+        $occupant = $this->entrar($this->techo, ['placa'=>'TMP123','autoriza_movimiento'=>0,
+            'llave_recibida'=>0,'ubicacion_llave'=>null]);
+        $move = ['origen_id'=>$this->techo->id,'destino_id'=>$this->patio->id,'retorno_ingreso'=>1];
+        $this->actingAs($this->staff)->post(route('admin.estadias.reubicar',$occupant),$move)
+            ->assertSessionHasErrors('reubicacion');
+        $this->mensualidad($this->techo);
+        $this->entrar($this->patio, ['placa'=>'OTH123']);
+        $this->post(route('admin.estadias.reubicar',$occupant),$move)
+            ->assertSessionHasErrors('reubicacion');
+        $this->assertSame($this->techo->id, $occupant->fresh()->espacio_id);
+        $this->assertSame(0, $occupant->reubicaciones()->count());
     }
     public function test_map_colors_follow_physical_occupancy_and_tariff_time(): void {
         $abono=$this->mensualidad($this->techo);
@@ -100,11 +170,22 @@ class AbonadosTest extends TestCase {
             ->assertJsonPath('espacios.1.estado_visual','excedido');
 
         $subscriber=$this->entrar($this->techo,['placa'=>'ABO123','abono_id'=>$abono->id,'llave_recibida'=>0]);
-        $this->getJson(route('admin.mapa.estado'))->assertJsonPath('espacios.0.estado_visual','abonado');
+        $this->getJson(route('admin.mapa.estado'))->assertJsonPath('espacios.0.estado_visual','abonado')
+            ->assertJsonPath('espacios.0.estado_texto','Cliente')
+            ->assertJsonCount(1, 'vehiculos_activos')
+            ->assertJsonPath('vehiculos_activos.0.placa', $guest->placa);
         $quote=Crypt::encryptString(json_encode(['id'=>$subscriber->id,
             'inicio'=>$subscriber->inicio_cobro->toIso8601String(),'corte'=>now()->toIso8601String()]));
         $this->post(route('admin.estadias.salida',$subscriber),['cotizacion'=>$quote])->assertSessionHasNoErrors();
         $this->getJson(route('admin.mapa.estado'))->assertJsonPath('espacios.0.estado_visual','libre');
+    }
+    public function test_map_shortens_long_subscriber_names_without_changing_occupancy(): void {
+        $abono = $this->mensualidad($this->techo, ['nombre'=>'Maximiliano Pérez']);
+        $this->entrar($this->techo, ['placa'=>'ABO123','abono_id'=>$abono->id]);
+
+        $this->actingAs($this->staff)->get(route('admin.dashboard'))->assertOk()->assertSee('Maximilia…');
+        $this->getJson(route('admin.mapa.estado'))->assertJsonPath('espacios.0.estado_visual','abonado')
+            ->assertJsonPath('espacios.0.estado_texto','Maximilia…');
     }
     public function test_map_entry_form_has_the_same_subscriber_lookup_fields(): void {
         $this->actingAs($this->staff)->get(route('admin.espacios.operar',$this->techo))

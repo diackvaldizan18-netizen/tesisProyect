@@ -4,7 +4,7 @@
 <main><h1>{{ $negocio->razon_social ?: ($negocio->titular ?: 'Parke’o') }}</h1><p>{{ $negocio->direccion_fiscal ?: 'Huánuco · Perú' }} · Estacionamiento</p>
 @if($negocio->ruc)<p>RUC: {{ $negocio->ruc }}</p>@endif
 @if($negocio->telefono)<p>Teléfono: {{ $negocio->telefono }}</p>@endif
-<h2>{{ $estadia->hora_salida ? ucfirst($estadia->tipo_comprobante ?? 'boleta').' · Comprobante de pago' : 'Ticket de ingreso' }}</h2>
+<h2>{{ $estadia->hora_salida ? ($estadia->abono_id && !$ventaActual ? 'Salida de abonado' : ucfirst($estadia->tipo_comprobante ?? 'boleta').' · Comprobante de pago') : 'Ticket de ingreso' }}</h2>
 <p>{{ $ventaActual?->numero ?? $estadia->codigo_ticket }}</p><strong class="plate">{{ $estadia->placa }}</strong>
 @unless($estadia->hora_salida)<img class="ticket-qr" src="data:image/svg+xml;base64,{{ base64_encode(app(\App\Services\TicketQrService::class)->svg($estadia)) }}" width="180" height="180" alt="QR seguro del ticket"><p>El QR identifica el ticket y no acredita un pago.</p>@endunless
 <dl>
@@ -22,10 +22,10 @@
     @if($estadia->reserva_id)<dt>Tiempo contratado</dt><dd>{{ $estadia->minutos_contratados }} min</dd><dt>Adelanto</dt><dd>S/ {{ number_format($estadia->monto_adelantado,2) }}</dd>@endif
     @if($estadia->hora_salida)
     <dt>Salida</dt><dd>{{ $estadia->hora_salida->format('d/m/Y H:i:s') }}</dd><dt>Tiempo utilizado</dt><dd>{{ $estadia->minutos_cobrados }} min</dd>
-    @if($estadia->tipo_impresion !== 'consumo')
+    @if($estadia->tipo_impresion !== 'consumo' && !($estadia->abono_id && !$ventaActual))
     <dt>Descuento</dt><dd>{{ number_format($estadia->descuento_porcentaje,2) }}% + S/ {{ number_format($estadia->descuento_monto,2) }}{{ $estadia->motivo_descuento ? ' · '.$estadia->motivo_descuento : '' }}</dd>
     @endif
-    <dt>Total</dt><dd>S/ {{ number_format($ventaActual?->total ?? $estadia->monto_total,2) }}</dd>
+    @if($estadia->abono_id && !$ventaActual)<dt>Mensualidad</dt><dd>Estadía cubierta, sin cobro adicional</dd>@else<dt>Total</dt><dd>S/ {{ number_format($ventaActual?->total ?? $estadia->monto_total,2) }}</dd>@endif
     @foreach($estadia->pagosSalida->whereIn('estado',['aprobado','reembolsado']) as $pago)<dt>{{ ucfirst($pago->metodo_pago) }}</dt><dd>S/ {{ number_format($pago->monto,2) }}@if($pago->metodo_pago === 'efectivo') · Recibido S/ {{ number_format($pago->efectivo_recibido,2) }}@endif</dd>@endforeach
     @if($estadia->pagosSalida->whereIn('estado',['aprobado','reembolsado'])->sum('vuelto')>0)<dt>Vuelto</dt><dd>S/ {{ number_format($estadia->pagosSalida->whereIn('estado',['aprobado','reembolsado'])->sum('vuelto'),2) }}</dd>@endif
     @endif

@@ -32,11 +32,18 @@ class EspacioOperacionController extends Controller
                 ->where('espacio_id', $espacio->id)->whereNotNull('hora_salida')->findOrFail($request->integer('ticket'));
             $finalizada = true;
         }
+        $esAbonadoVigente = $estadia && ! $finalizada && $estadia->salidaCubiertaPorAbono();
+        $ventaComprobante = $finalizada
+            ? \App\Models\Venta::with('pagos')->where('origen_tipo', 'estadia')->where('origen_id', $estadia->id)
+                ->whereIn('estado', ['vigente', 'corregida'])->latest('version')->first()
+            : null;
         $reserva = $estadia ? null : Reserva::with('usuario', 'pagos')->where('espacio_id', $espacio->id)
             ->whereIn('estado', ['pendiente_pago', 'confirmada'])->whereNull('inasistencia_at')->whereDoesntHave('estadia')->first();
         $libre = $espacio->activo && $espacio->estado_actual === 'libre';
-        $vista = $request->input('vista', $finalizada ? 'comprobante' : ($estadia ? 'ticket' : ($reserva ? 'reserva' : ($libre ? 'ingreso' : 'estado'))));
-        $permitidas = $finalizada ? ['comprobante', 'ticket', 'historial'] : ($estadia ? ['ticket', 'cobrar', 'editar', 'mover', 'historial'] : ($reserva ? ['reserva'] : ($libre ? ['ingreso'] : ['estado'])));
+        $vista = $request->input('vista', $finalizada ? ($ventaComprobante ? 'comprobante' : 'ticket') : ($estadia ? 'ticket' : ($reserva ? 'reserva' : ($libre ? 'ingreso' : 'estado'))));
+        $permitidas = $finalizada ? ($ventaComprobante ? ['comprobante', 'ticket', 'historial'] : ['ticket', 'historial'])
+            : ($estadia ? ($esAbonadoVigente ? ['ticket', 'editar', 'historial'] : ['ticket', 'cobrar', 'editar', 'mover', 'historial'])
+                : ($reserva ? ['reserva'] : ($libre ? ['ingreso'] : ['estado'])));
         if (! in_array($vista, $permitidas, true)) $vista = $permitidas[0];
         $liquidacion = $cotizacion = null;
         if ($estadia && !$finalizada && $vista === 'cobrar' && $estadia->inicio_cobro) {
@@ -53,11 +60,7 @@ class EspacioOperacionController extends Controller
                     && ($e->modo_monitoreo !== 'sensor' || ($e->sensor?->lectura_vigente && $e->sensor?->integracion_iot)));
         }
         $tarifasIngreso = $tarifasService->tarifasIngreso()->whereIn('vehiculo_tipo_id', $espacio->vehiculoTipos->pluck('id'));
-        $ventaComprobante = $finalizada && $vista === 'comprobante'
-            ? \App\Models\Venta::with('pagos')->where('origen_tipo','estadia')->where('origen_id',$estadia->id)
-                ->whereIn('estado',['vigente','corregida'])->latest('version')->first()
-            : null;
-        return response()->view('admin.espacios.operacion', compact('espacio', 'estadia', 'reserva', 'vista', 'liquidacion', 'cotizacion', 'destinos', 'finalizada')
+        return response()->view('admin.espacios.operacion', compact('espacio', 'estadia', 'reserva', 'vista', 'liquidacion', 'cotizacion', 'destinos', 'finalizada', 'esAbonadoVigente')
             + ['tipos' => VehiculoTipo::where('activo', true)->get(),
                 'ventaComprobante' => $ventaComprobante,
                 'tarifasEdicion' => $tarifasIngreso, 'tarifasIngreso' => $tarifasIngreso,

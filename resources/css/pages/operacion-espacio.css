@@ -10,8 +10,9 @@
 .space-plate{font:700 22px ui-monospace,Consolas,monospace;margin:0 0 5px;letter-spacing:.04em}
 .space-context>small{display:block;overflow-wrap:anywhere;color:var(--panel-muted);margin-bottom:18px}
 .space-actions{display:grid;gap:5px;border-top:1px solid var(--panel-line);padding-top:15px;margin-top:15px}
-.space-actions a{display:flex;gap:10px;align-items:center;min-height:44px;padding:9px 12px;border-radius:9px;text-decoration:none;color:var(--panel-ink);font-size:13px;font-weight:650}
-.space-actions a:hover,.space-actions a.active{background:var(--panel-surface);box-shadow:inset 3px 0 var(--panel-gold)}
+.space-actions :is(a,button){display:flex;gap:10px;align-items:center;min-height:44px;padding:9px 12px;border-radius:9px;text-decoration:none;color:var(--panel-ink);font-size:13px;font-weight:650}
+.space-actions button{width:100%;border:0;background:transparent;text-align:left;cursor:pointer;font-family:inherit}
+.space-actions :is(a,button):hover,.space-actions a.active{background:var(--panel-surface);box-shadow:inset 3px 0 var(--panel-gold)}
 .space-actions svg{width:18px;height:18px}
 .space-content{padding:22px!important;min-height:430px}
 .space-panel-heading{margin-bottom:20px}.space-panel-heading h2{margin:4px 0 8px;font-size:22px}.space-panel-heading p{margin:0;line-height:1.5;color:var(--panel-muted)}

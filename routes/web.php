@@ -288,6 +288,7 @@ Route::middleware(['auth', 'role:junior,admin,super_admin,operador'])->prefix('a
     Route::get('/estadias/escanear/qr', [\App\Http\Controllers\Admin\EstadiaController::class, 'escanear'])->name('estadias.escanear');
     Route::get('/estadias/{estadia}/identificar', [\App\Http\Controllers\Admin\EstadiaController::class, 'identificar'])->middleware('signed:relative')->name('estadias.identificar');
     Route::post('/estadias/{estadia}/salida', [\App\Http\Controllers\Admin\EstadiaController::class, 'salida'])->name('estadias.salida');
+    Route::post('/estadias/{estadia}/salida-abonado', [\App\Http\Controllers\Admin\EstadiaController::class, 'salidaAbonado'])->name('estadias.salida-abonado');
     Route::post('/estadias/{estadia}/inicio-manual', [\App\Http\Controllers\Admin\EstadiaController::class, 'inicioManual'])->name('estadias.inicio-manual');
 });
 

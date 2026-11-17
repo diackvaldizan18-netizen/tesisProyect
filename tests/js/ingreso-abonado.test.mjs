@@ -24,6 +24,8 @@ class Element {
     replaceChildren() { this.options = []; }
     add(option) { this.options.push(option); }
     get selectedOptions() { return (this.options ?? []).filter(option => option.value === this.value); }
+    showModal() { this.open = true; }
+    close() { this.open = false; }
 }
 
 test('DNI vigente fills the real plate, vehicle, space and subscription fields', async () => {
@@ -98,4 +100,69 @@ test('DNI vigente fills the real plate, vehicle, space and subscription fields',
     assert.equal(plateGroup.hidden, true);
     assert.equal(submit.disabled, false);
     }
+});
+
+test('occupied subscriber space opens the modal and keeps the entry draft when moving', async () => {
+    const dni = new Element('12345678');
+    dni.dataset.subscriberUrl = '/abonados/buscar-dni';
+    const plate = new Element('ABO123');
+    const plates = new Element();
+    plates.options = [];
+    const space = new Element('');
+    space.options = [];
+    space.querySelector = () => null;
+    space.add = option => space.options.push(option);
+    const type = new Element();
+    const abonado = new Element();
+    const release = new Element();
+    const cancel = new Element();
+    const modal = new Element();
+    const detail = new Element();
+    const submit = new Element();
+    const form = new Element();
+    const stored = new Map();
+    let navigation = null;
+    class Option {
+        constructor(text, value) { this.text = text; this.value = value; this.dataset = {}; }
+    }
+    const byId = {
+        'entry-dni': dni, 'entry-form': form, placa: plate,
+        'entry-subscriber-plates': new Element(), 'entry-subscriber-plate': plates,
+        espacio_id: space, vehiculo_tipo_id: type, abono_id: abonado,
+        'entry-subscriber-message': new Element(), 'entry-subscriber-rate': new Element(),
+        'entry-occupied-modal': modal, 'entry-occupied-detail': detail,
+        'entry-release-space': release, 'entry-release-cancel': cancel, 'entry-submit': submit,
+    };
+    runInNewContext(source, {
+        document: {querySelector: () => null, getElementById: id => byId[id] ?? null, hidden: false},
+        location: {search: '', href: 'http://localhost/admin/estadias/crear'},
+        window: {location: {assign: url => { navigation = url; }}},
+        URL, URLSearchParams, AbortController, Option,
+        Event: class {constructor(type) { this.type = type; }},
+        FormData: class {entries() { return Object.entries({dni: dni.value, placa: plate.value, espacio_id: space.value, vehiculo_tipo_id: type.value, abono_id: abonado.value}); }},
+        fetch: async () => ({ok: true, json: async () => ({
+            vigente: true, abono_id: 9, cliente: 'Cliente', placas: ['ABO123'], placas_activas: [],
+            espacio_id: 1, espacio_codigo: 'T01', espacio_tipos: [1], espacio_modo: 'manual',
+            espacio_estado: 'ocupado', ocupante_placa: 'TMP123', vehiculo_tipo_id: 1,
+            tarifa_mensual: 'Mensual', vence: '30/11/2026',
+            mover_url: '/admin/operacion/espacios/1?vista=mover&retorno_ingreso=1',
+        })}),
+        setInterval() {}, setTimeout() {}, clearTimeout() {},
+        sessionStorage: {setItem: (key, value) => stored.set(key, value), getItem: key => stored.get(key) ?? null},
+    });
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(modal.open, true);
+    assert.equal(submit.disabled, true);
+    assert.equal(release.disabled, false);
+    assert.match(detail.textContent, /TMP123/);
+    cancel.dispatchEvent({type: 'click'});
+    assert.equal(modal.open, false);
+    assert.equal(plate.value, 'ABO123');
+    dni.dispatchEvent({type: 'change'});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(modal.open, false);
+    release.dispatchEvent({type: 'click'});
+    assert.equal(navigation, '/admin/operacion/espacios/1?vista=mover&retorno_ingreso=1');
+    assert.equal(JSON.parse(stored.get('parkeo-ingreso-abonado')).placa, 'ABO123');
 });

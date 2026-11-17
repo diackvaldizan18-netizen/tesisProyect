@@ -16,17 +16,19 @@ class ReubicacionService {
             $source = $spaces->get($sourceId); $target = $spaces->get($targetId);
             if (!$source || !$target || $stay->espacio_id !== $sourceId || $stay->hora_salida) { $this->error('La ubicación o el ticket cambió. Actualiza antes de mover.'); }
             if ($stay->abono_id) { $this->error('El abonado conserva su espacio asignado. Esta acción es para ocupaciones temporales.'); }
-            if (!$stay->inicio_cobro) { $this->error('Confirma primero el inicio de la estancia para conservar su contador.'); }
-            if ((!$stay->autoriza_movimiento && empty($data['autoriza_movimiento_confirmada'])) || !$stay->llave_recibida || !$stay->ubicacion_llave) { $this->error('Necesitas la autorización del cliente y la llave registrada.'); }
-            if (empty($data['movimiento_confirmado'])) { $this->error('Confirma el movimiento físico antes de cambiar la ubicación.'); }
+            $liberacionAbonado = !empty($data['retorno_ingreso']);
+            if ($liberacionAbonado && !$source->abonoVigente()->exists()) { $this->error('No hay un abonado vigente asignado a este espacio.'); }
+            if (!$liberacionAbonado && !$stay->inicio_cobro) { $this->error('Confirma primero el inicio de la estancia para conservar su contador.'); }
+            if (!$liberacionAbonado && ((!$stay->autoriza_movimiento && empty($data['autoriza_movimiento_confirmada'])) || !$stay->llave_recibida || !$stay->ubicacion_llave)) { $this->error('Necesitas la autorización del cliente y la llave registrada.'); }
+            if (!$liberacionAbonado && empty($data['movimiento_confirmado'])) { $this->error('Confirma el movimiento físico antes de cambiar la ubicación.'); }
             if (!$target->activo || $target->estado_actual !== 'libre' || $target->estadias()->activas()->exists()) { $this->error('El destino no está libre. Elige otro espacio disponible.'); }
             if (!$target->vehiculoTipos()->where('vehiculo_tipos.id',$stay->vehiculo_tipo_id)->where('activo',true)->exists()) { $this->error('El destino no admite este tipo de vehículo.'); }
             if ($target->modo_monitoreo === 'sensor' && (!$target->sensor?->lectura_vigente || !$target->sensor?->integracion_iot)) { $this->error('No hay lectura confiable del sensor de destino.'); }
             $stay->update(['espacio_id'=>$targetId, 'espacio_activo_id'=>$targetId,
-                'autoriza_movimiento' => $stay->autoriza_movimiento || !empty($data['autoriza_movimiento_confirmada'])]);
+                'autoriza_movimiento' => $stay->autoriza_movimiento || (!$liberacionAbonado && !empty($data['autoriza_movimiento_confirmada']))]);
             // The reservation retains its original allocation; the active ticket owns current occupancy.
-            if ($source->modo_monitoreo === 'manual') { $source->update(['estado_actual'=>'libre']); }
-            if ($target->modo_monitoreo === 'manual') { $target->update(['estado_actual'=>'ocupado']); }
+            if ($liberacionAbonado || $source->modo_monitoreo === 'manual') { $source->update(['estado_actual'=>'libre']); }
+            if ($liberacionAbonado || $target->modo_monitoreo === 'manual') { $target->update(['estado_actual'=>'ocupado']); }
             foreach ([[$sourceId,'libre'],[$targetId,'ocupado']] as [$id,$state]) {
                 RegistroOcupacion::create(['espacio_id'=>$id,'estado_detectado'=>$state,'fecha_hora'=>now(),'origen'=>'reubicacion']);
             }

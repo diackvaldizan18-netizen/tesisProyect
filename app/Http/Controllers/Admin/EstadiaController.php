@@ -25,7 +25,7 @@ class EstadiaController extends Controller
     {
         $reservas->procesarReservasAutomaticas();
         $request->validate(['buscar' => 'nullable|string|max:80', 'estado' => 'nullable|in:activas,historial,salidas', 'fecha' => 'nullable|date']);
-        $query = Estadia::with('espacio', 'vehiculoTipo', 'reserva');
+        $query = Estadia::with('espacio', 'vehiculoTipo', 'reserva', 'abono');
         if ($request->input('estado') === 'salidas') {
             $query->whereDate('hora_salida', today());
         } elseif ($request->input('estado') !== 'historial') {
@@ -121,13 +121,14 @@ class EstadiaController extends Controller
         $estadia->load('espacio', 'vehiculoTipo', 'reserva.usuario', 'operadorIngreso', 'operadorSalida', 'pagosSalida', 'clienteCobro');
         $liquidacion = null;
         $cotizacion = null;
-        if (! $estadia->hora_salida && $estadia->inicio_cobro) {
+        $esAbonadoVigente = ! $estadia->hora_salida && $estadia->salidaCubiertaPorAbono();
+        if (! $estadia->hora_salida && ! $esAbonadoVigente && $estadia->inicio_cobro) {
             $corte = now();
             $liquidacion = $service->calcular($estadia, $corte);
             $cotizacion = Crypt::encryptString(json_encode(['id' => $estadia->id, 'inicio' => $estadia->inicio_cobro->toIso8601String(), 'corte' => $corte->toIso8601String()]));
         }
 
-        return view('admin.estadias.show', compact('estadia', 'liquidacion', 'cotizacion') + ['destinos'=>Espacio::conEstadoOperativo()->where('activo',true)->orderBy('codigo')->get()->filter(fn ($e)=>$e->estado_actual === 'libre' && $e->id !== $estadia->espacio_id)]);
+        return view('admin.estadias.show', compact('estadia', 'liquidacion', 'cotizacion', 'esAbonadoVigente') + ['destinos'=>Espacio::conEstadoOperativo()->where('activo',true)->orderBy('codigo')->get()->filter(fn ($e)=>$e->estado_actual === 'libre' && $e->id !== $estadia->espacio_id)]);
     }
 
     public function ticket(Estadia $estadia)
@@ -139,6 +140,9 @@ class EstadiaController extends Controller
 
     public function salida(Request $request, Estadia $estadia, EstadiaService $service, ImpresionService $impresion)
     {
+        if (! $estadia->hora_salida && $estadia->salidaCubiertaPorAbono()) {
+            return $this->salidaAbonado($request, $estadia, $service);
+        }
         $data = $request->validate(['cotizacion' => 'required|string', 'metodo_pago' => 'nullable|in:efectivo,yape,plin',
             'referencia_pago' => 'nullable|string|max:80|regex:/^[A-Za-z0-9-]+$/', 'efectivo_recibido' => 'nullable|numeric|min:0|max:999999|decimal:0,2',
             'pago_verificado' => 'sometimes|accepted', 'cliente_cobro_id' => 'nullable|exists:clientes_cobro,id', 'desde_mapa' => 'nullable|in:1',
@@ -160,6 +164,13 @@ class EstadiaController extends Controller
         return redirect()->route('admin.espacios.operar',
             ['espacio'=>$estadia->espacio_id,'vista'=>'comprobante','ticket'=>$estadia->id])
             ->with('impresion_automatica',$resultadoImpresion);
+    }
+
+    public function salidaAbonado(Request $request, Estadia $estadia, EstadiaService $service)
+    {
+        $service->salirAbonado($estadia, $request->user());
+
+        return redirect()->route('admin.dashboard')->with('success', 'Salida del abonado registrada. El espacio está disponible.');
     }
 
     public function guardarCliente(Request $request)

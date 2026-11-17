@@ -62,7 +62,7 @@ class ImpresionService
         $venta = $estadia->hora_salida ? Venta::where('origen_tipo','estadia')->where('origen_id',$estadia->id)
             ->whereIn('estado',['vigente','corregida'])->latest('version')->first() : null;
         $lineas = [$negocio->razon_social ?: ($negocio->titular ?: 'Parke’o'),
-            $estadia->hora_salida ? strtoupper($venta?->tipo_comprobante ?? $estadia->tipo_comprobante ?? 'BOLETA').' · PAGO' : 'TICKET DE ENTRADA',
+            $estadia->hora_salida ? ($estadia->abono_id && ! $venta ? 'SALIDA DE ABONADO' : strtoupper($venta?->tipo_comprobante ?? $estadia->tipo_comprobante ?? 'BOLETA').' · PAGO') : 'TICKET DE ENTRADA',
             $venta?->numero ?? $estadia->codigo_ticket,
             'Placa: '.$estadia->placa,
             'Vehiculo: '.($estadia->vehiculoTipo?->nombre ?: '—'),
@@ -71,7 +71,8 @@ class ImpresionService
             'Tarifa: '.($estadia->tarifa_snapshot['nombre'] ?? 'Registrada')];
         if ($estadia->hora_salida) {
             $lineas[] = 'Salida: '.$estadia->hora_salida->format('d/m/Y H:i');
-            $lineas[] = 'Total: S/ '.number_format((float)($venta?->total ?? $estadia->saldo_cobrado ?? 0),2);
+            if ($estadia->abono_id && ! $venta) $lineas[] = 'Cubierto por abono mensual. Sin cobro adicional.';
+            else $lineas[] = 'Total: S/ '.number_format((float)($venta?->total ?? $estadia->saldo_cobrado ?? 0),2);
             foreach ($estadia->pagosSalida->whereIn('estado',['aprobado','reembolsado']) as $pago)
                 $lineas[] = ucfirst($pago->metodo_pago).': S/ '.number_format((float)$pago->monto,2);
             if ((float)$estadia->vuelto > 0) $lineas[] = 'Vuelto: S/ '.number_format((float)$estadia->vuelto,2);

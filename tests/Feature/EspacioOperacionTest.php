@@ -50,6 +50,26 @@ class EspacioOperacionTest extends TestCase
             'ubicacion_llave' => 'Casillero 2'], $this->staff);
     }
 
+    public function test_home_lists_only_active_regular_stays_and_refreshes_their_space(): void
+    {
+        $this->actingAs($this->staff);
+        $stay = $this->stay();
+        $this->get(route('admin.dashboard'))->assertOk()
+            ->assertSee('Vehículos estacionados')->assertSee('HUA123')
+            ->assertSee('Hora auto')->assertSee('S/ 5.00');
+        $this->getJson(route('admin.mapa.estado'))->assertOk()
+            ->assertJsonCount(1, 'vehiculos_activos')
+            ->assertJsonPath('vehiculos_activos.0.espacio', 'T27')
+            ->assertJsonPath('vehiculos_activos.0.importe', '5.00');
+
+        $stay->update(['espacio_id' => $this->target->id, 'espacio_activo_id' => $this->target->id]);
+        $this->getJson(route('admin.mapa.estado'))->assertJsonPath('vehiculos_activos.0.espacio', 'T28');
+
+        $stay->update(['hora_salida' => now(), 'placa_activa' => null, 'espacio_activo_id' => null]);
+        $this->getJson(route('admin.mapa.estado'))->assertJsonCount(0, 'vehiculos_activos');
+        $this->assertDatabaseHas('estadias', ['id' => $stay->id]);
+    }
+
     public function test_map_opens_free_space_with_entry_and_occupied_space_with_ticket(): void
     {
         $this->actingAs($this->staff)->get(route('admin.dashboard'))->assertOk()

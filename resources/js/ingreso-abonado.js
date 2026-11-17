@@ -25,7 +25,10 @@ if (dni) {
     const abono = document.getElementById('abono_id');
     const message = document.getElementById('entry-subscriber-message');
     const monthly = document.getElementById('entry-subscriber-rate');
+    const occupiedModal = document.getElementById('entry-occupied-modal');
+    const occupiedDetail = document.getElementById('entry-occupied-detail');
     const release = document.getElementById('entry-release-space');
+    const releaseCancel = document.getElementById('entry-release-cancel');
     const submit = document.getElementById('entry-submit');
     const normalNote = document.querySelector('[data-entry-normal-note]');
     const originalNote = normalNote?.textContent;
@@ -38,6 +41,19 @@ if (dni) {
     let activeAbono = null;
     let lookupRequest;
     let timer;
+    let dismissedOccupancy = null;
+    let suppressRestoredPrompt = new URLSearchParams(location.search).has('reubicacion_cancelada');
+
+    const closeOccupiedModal = () => {
+        if (!occupiedModal?.open) return;
+        if (typeof occupiedModal.close === 'function') occupiedModal.close();
+        else occupiedModal.removeAttribute('open');
+    };
+    const openOccupiedModal = () => {
+        if (!occupiedModal || occupiedModal.open) return;
+        if (typeof occupiedModal.showModal === 'function') occupiedModal.showModal();
+        else occupiedModal.setAttribute('open', '');
+    };
 
     const inform = (text, benefit = false) => {
         message.textContent = text;
@@ -55,7 +71,8 @@ if (dni) {
         plate.readOnly = false;
         plateGroup.hidden = true;
         monthly.hidden = true;
-        release.hidden = true;
+        closeOccupiedModal();
+        release.disabled = true;
         release.dataset.url = '';
         submit.disabled = false;
         if (normalNote) normalNote.textContent = originalNote;
@@ -69,12 +86,21 @@ if (dni) {
         plate.value = plateSelect.value;
         const duplicate = plateSelect.selectedOptions[0]?.dataset.active === '1';
         const occupied = activeAbono?.espacio_estado !== 'libre';
+        const occupiedByOther = occupied && activeAbono?.ocupante_placa && activeAbono.ocupante_placa !== plate.value;
+        const occupancyKey = occupiedByOther ? `${activeAbono.abono_id}:${plate.value}:${activeAbono.ocupante_placa}` : null;
         submit.disabled = duplicate || occupied;
-        release.hidden = !(occupied && activeAbono?.ocupante_placa !== plate.value && release.dataset.url);
+        release.disabled = !release.dataset.url;
         if (duplicate) inform('Esta placa ya tiene un ingreso activo. No puedes registrarla nuevamente.', true);
-        else if (occupied && !release.hidden) inform(`El espacio ${activeAbono.espacio_codigo} está ocupado por ${activeAbono.ocupante_placa}. Libéralo antes de registrar.`, true);
+        else if (occupiedByOther) inform(`El espacio ${activeAbono.espacio_codigo} está ocupado por ${activeAbono.ocupante_placa}. Libéralo antes de registrar.`, true);
         else if (occupied) inform(`El espacio ${activeAbono.espacio_codigo} no está libre. Revisa el estado antes de registrar.`, true);
         else if (activeAbono) inform(`Abono vigente de ${activeAbono.cliente}. Espacio ${activeAbono.espacio_codigo} asignado.`, true);
+        if (occupiedByOther && !duplicate) {
+            occupiedDetail.textContent = release.dataset.url
+                ? `El espacio ${activeAbono.espacio_codigo} está ocupado por ${activeAbono.ocupante_placa}. Selecciona otro espacio libre para reubicarlo.`
+                : `El espacio ${activeAbono.espacio_codigo} está ocupado por ${activeAbono.ocupante_placa}. Este vehículo no cumple las condiciones para reubicarse.`;
+            if (suppressRestoredPrompt) { dismissedOccupancy = occupancyKey; suppressRestoredPrompt = false; }
+            if (dismissedOccupancy !== occupancyKey) openOccupiedModal();
+        } else closeOccupiedModal();
     };
     plateSelect.addEventListener('change', selectPlate);
     const applySubscriber = data => {
@@ -152,6 +178,7 @@ if (dni) {
         }
     };
     dni.addEventListener('input', () => {
+        dismissedOccupancy = null;
         if (activeAbono) { resetSubscriber(); inform(''); }
         clearTimeout(timer);
         timer = setTimeout(lookup, 300);
@@ -159,13 +186,17 @@ if (dni) {
     dni.addEventListener('change', lookup);
     dni.addEventListener('blur', () => { if (dni.value.length === 8 && !activeAbono) lookup(); });
     setInterval(() => { if (activeAbono && !document.hidden) lookup(); }, 10000);
+    releaseCancel?.addEventListener('click', () => {
+        dismissedOccupancy = activeAbono ? `${activeAbono.abono_id}:${plate.value}:${activeAbono.ocupante_placa}` : null;
+        closeOccupiedModal();
+    });
     release.addEventListener('click', () => {
         if (!release.dataset.url) return;
         const values = Object.fromEntries(new FormData(form).entries());
         sessionStorage.setItem(draftKey, JSON.stringify(values));
         window.location.assign(release.dataset.url);
     });
-    if (new URLSearchParams(location.search).has('reubicado')) {
+    if (new URLSearchParams(location.search).has('reubicado') || suppressRestoredPrompt) {
         try {
             const saved = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
             sessionStorage.removeItem(draftKey);

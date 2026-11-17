@@ -144,6 +144,9 @@ class EstadiaService
                 if ($estadia->hora_salida) {
                     throw ValidationException::withMessages(['salida' => 'Este ticket ya tiene salida registrada.']);
                 }
+                if ($estadia->salidaCubiertaPorAbono()) {
+                    throw ValidationException::withMessages(['salida' => 'La estadía está cubierta por una mensualidad vigente. Usa Registrar salida.']);
+                }
                 try {
                     $quote = json_decode(Crypt::decryptString($data['cotizacion']), true, 512, JSON_THROW_ON_ERROR);
                 } catch (\Throwable $e) {
@@ -190,5 +193,38 @@ class EstadiaService
         } catch (UniqueConstraintViolationException $e) {
             throw ValidationException::withMessages(['referencia_pago' => 'La operación o el ticket ya tienen un cobro registrado.']);
         }
+    }
+
+    public function salirAbonado(Estadia $estadia, User $operador): Estadia
+    {
+        return DB::transaction(function () use ($estadia, $operador) {
+            $espacio = Espacio::lockForUpdate()->findOrFail($estadia->espacio_id);
+            $estadia = Estadia::lockForUpdate()->findOrFail($estadia->id);
+            if ($estadia->espacio_id !== $espacio->id) {
+                throw ValidationException::withMessages(['salida' => 'El vehículo fue reubicado. Actualiza el ticket.']);
+            }
+            if ($estadia->hora_salida) {
+                throw ValidationException::withMessages(['salida' => 'Este ticket ya tiene salida registrada.']);
+            }
+            if (! $estadia->salidaCubiertaPorAbono()) {
+                throw ValidationException::withMessages(['salida' => 'La estadía no está completamente cubierta por una mensualidad vigente. Usa el cobro de salida.']);
+            }
+
+            $salida = now();
+            $estadia->update([
+                'hora_salida' => $salida, 'liquidado_hasta' => $salida,
+                'operador_salida_id' => $operador->id, 'placa_activa' => null,
+                'espacio_activo_id' => null, 'casillero_activo' => null,
+                'minutos_cobrados' => max(0, (int) ceil($estadia->hora_ingreso->diffInSeconds($salida) / 60)),
+                'monto_total' => 0, 'monto_exceso' => 0, 'saldo_cobrado' => 0,
+            ]);
+            $espacio->update(['estado_actual' => 'libre']);
+            RegistroOcupacion::create([
+                'espacio_id' => $espacio->id, 'estado_detectado' => 'libre',
+                'fecha_hora' => $salida, 'origen' => 'salida_abonado',
+            ]);
+
+            return $estadia;
+        });
     }
 }
