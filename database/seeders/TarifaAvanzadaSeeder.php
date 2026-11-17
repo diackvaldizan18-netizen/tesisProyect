@@ -18,21 +18,7 @@ class TarifaAvanzadaSeeder extends Seeder
         }
 
         foreach (VehiculoTipo::whereIn('codigo', ['auto', 'camioneta'])->get() as $tipo) {
-        $this->asegurarTarifaActiva($tipo, [
-            'nombre' => 'Hora o fracción · S/ 5',
-            'tipo_tarifa' => 'por_hora',
-            'monto_base' => 0,
-            'monto_por_hora' => 5.00,
-            'monto_por_fraccion' => 5.00,
-            'minutos_fraccion' => 60,
-            'tiempo_minimo_minutos' => 60,
-            'tolerancia_minutos' => 5,
-            'penalidad_por_fraccion' => 5.00,
-            'hora_inicio' => null,
-            'hora_fin' => null,
-            'prioridad' => 1,
-        ]);
-
+            $this->asegurarTarifaActiva($tipo, self::tarifaPorHora());
         }
 
         $this->asegurarTarifaActiva($moto, [
@@ -49,7 +35,24 @@ class TarifaAvanzadaSeeder extends Seeder
             'hora_fin' => null,
             'prioridad' => 1,
         ]);
+    }
 
+    public static function tarifaPorHora(): array
+    {
+        return [
+            'nombre' => 'Hora o fracción · S/ 5',
+            'tipo_tarifa' => 'por_hora',
+            'monto_base' => 0,
+            'monto_por_hora' => 5.00,
+            'monto_por_fraccion' => 5.00,
+            'minutos_fraccion' => 60,
+            'tiempo_minimo_minutos' => 60,
+            'tolerancia_minutos' => 5,
+            'penalidad_por_fraccion' => 5.00,
+            'hora_inicio' => null,
+            'hora_fin' => null,
+            'prioridad' => 1,
+        ];
     }
 
     private function asegurarTarifaActiva(VehiculoTipo $vehiculoTipo, array $defaults): void

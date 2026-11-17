@@ -216,7 +216,7 @@ class ParkeoPaymentTest extends TestCase
 
     public function test_seed_preserves_records_and_adds_41_roof_spaces_without_fake_sensors(): void
     {
-        Espacio::create(['codigo' => 'E01', 'estado_actual' => 'ocupado', 'activo' => true]);
+        Espacio::create(['codigo' => 'E01', 'estado_actual' => 'ocupado', 'activo' => true, 'incluido_estudio' => true]);
         $this->seed(ParkeoSeeder::class);
         $this->seed(ParkeoSeeder::class);
         $this->assertSame(41, Espacio::count());

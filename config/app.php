@@ -1,5 +1,12 @@
 <?php
 
+$railwayDomain = env('RAILWAY_PUBLIC_DOMAIN');
+$railwayUrl = $railwayDomain ? 'https://'.$railwayDomain : null;
+$assetUrl = env('ASSET_URL') ?: $railwayUrl;
+if ($railwayUrl && $assetUrl) {
+    $assetUrl = preg_replace('~^http://~i', 'https://', $assetUrl);
+}
+
 return [
 
     /*
@@ -52,7 +59,9 @@ return [
     |
     */
 
-    'url' => env('APP_URL', 'http://localhost'),
+    'url' => env('APP_URL', $railwayUrl ?? 'http://localhost'),
+    'asset_url' => $assetUrl,
+    'railway_https' => $railwayUrl !== null,
 
     /*
     |--------------------------------------------------------------------------

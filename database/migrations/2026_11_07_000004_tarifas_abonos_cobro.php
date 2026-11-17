@@ -3,18 +3,19 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Support\MigrationSchema;
 
 return new class extends Migration {
     public function up(): void
     {
-        Schema::table('tarifas', function (Blueprint $t) {
+        MigrationSchema::table('tarifas', function (Blueprint $t) {
             $t->string('tipo_tarifa', 24)->default('por_hora')->change();
             $t->boolean('cobro_intervalos')->default(false);
         });
-        Schema::table('abonados', function (Blueprint $t) {
+        MigrationSchema::table('abonados', function (Blueprint $t) {
             $t->string('dni', 8)->nullable()->unique();
         });
-        Schema::table('abonos', function (Blueprint $t) {
+        MigrationSchema::table('abonos', function (Blueprint $t) {
             $t->foreignId('tarifa_id')->nullable()->constrained('tarifas')->restrictOnDelete();
             $t->foreignId('cliente_cobro_id')->nullable()->constrained('clientes_cobro')->restrictOnDelete();
             $t->unsignedTinyInteger('meses')->default(1);
@@ -27,7 +28,7 @@ return new class extends Migration {
             $t->decimal('efectivo_recibido', 10, 2)->nullable();
             $t->decimal('vuelto', 10, 2)->nullable();
         });
-        Schema::table('pagos', fn (Blueprint $t) => $t->dropUnique('pagos_abono_id_unique'));
+        MigrationSchema::allowMultiplePayments('abono_id', 'abonos');
     }
 
     public function down(): void

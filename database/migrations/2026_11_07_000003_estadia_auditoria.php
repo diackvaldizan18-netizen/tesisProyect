@@ -3,11 +3,12 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Support\MigrationSchema;
 
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('estadia_auditorias', function (Blueprint $t) {
+        MigrationSchema::create('estadia_auditorias', function (Blueprint $t) {
             $t->id();
             $t->foreignId('estadia_id')->constrained('estadias')->restrictOnDelete();
             $t->foreignId('usuario_id')->constrained('users')->restrictOnDelete();
